@@ -25,3 +25,9 @@ def create_app():
         from backend import models
 
     return app
+
+# Expose the app object for Gunicorn
+app = create_app()
+
+if __name__ == "__main__":
+    app.run()
