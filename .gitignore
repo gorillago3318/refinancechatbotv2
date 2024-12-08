@@ -21,3 +21,5 @@ ENV/
 
 # Migrations
 migrations/
+
+heroku-x64.exe
