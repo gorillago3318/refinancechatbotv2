@@ -9,6 +9,7 @@ import re
 import openai
 from backend.calculation import calculate_savings, format_years_saved
 from backend.models import Lead
+from backend.models import BankRate
 
 chatbot_bp = Blueprint('chatbot', __name__)
 logger = logging.getLogger(__name__)
@@ -214,8 +215,15 @@ def handle_incoming_message(req):
             return jsonify({"status": "summary generated"})
 
 def perform_calculations_and_summary(from_number, lead):
-    # Scenario with Bank A interest of 3.8%
-    new_rate_annual = 3.8
+    # Attempt to find a suitable bank rate for the user's loan amount
+    best_rate = BankRate.query.filter(
+        BankRate.min_amount <= lead.original_loan_amount,
+        BankRate.max_amount >= lead.original_loan_amount
+    ).order_by(BankRate.interest_rate.asc()).first()
+
+    # Default to 4.00% if no suitable rate found
+    new_rate_annual = best_rate.interest_rate if best_rate else 4.00
+
     calculations = calculate_savings(
         loan_amount=lead.original_loan_amount,
         loan_tenure_years=lead.original_loan_tenure,
@@ -249,7 +257,8 @@ def perform_calculations_and_summary(from_number, lead):
 
     if calculations['monthly_saving'] > 0:
         summary += (
-            f"By refinancing at Bank A's 3.8% interest rate, you could potentially save *{formatted_total}* in total, "
+            f"Based on the available interest rates, we have selected *{new_rate_annual:.2f}%* as your new rate. "
+            f"With this rate, you could potentially save *{formatted_total}* in total, "
             f"or reduce your loan tenure by *{formatted_years}*, assuming you continue the same monthly payment.\n\n"
             "A specialist will be assigned to provide a more detailed refinancing report.\n\n"
             "This service is free and has no obligations."
@@ -270,12 +279,11 @@ def perform_calculations_and_summary(from_number, lead):
     )
     send_whatsapp_message(from_number, followup_msg)
 
-    # Format the original loan amount for admin notification
     def formatted_original_loan_amount(amount):
         return f"RM{amount:,.2f}"
 
-    # If interest_rate is None, it means user skipped
-    interest_rate_info = lead.interest_rate if lead.interest_rate else "None"
+    # If interest_rate is None from the user or no best rate found, we indicate None or show the chosen best rate
+    interest_rate_info = f"{new_rate_annual:.2f}%" if best_rate else "None"
 
     admin_notification = (
         "New Refinancing Lead:\n\n"
@@ -284,7 +292,7 @@ def perform_calculations_and_summary(from_number, lead):
         f"Original Loan Amount: {formatted_original_loan_amount(lead.original_loan_amount)}\n"
         f"Original Tenure: {lead.original_loan_tenure} years\n"
         f"Remaining Tenure: {lead.remaining_tenure} years\n"
-        f"Interest Rate (User Provided or Skipped): {interest_rate_info}\n"
+        f"Interest Rate (User Provided or Found): {interest_rate_info}\n"
         f"Current Monthly Repayment: {formatted_current}\n"
         f"New Monthly Repayment: {formatted_new}\n"
         f"Monthly Savings: {formatted_monthly}\n"
@@ -298,6 +306,7 @@ def perform_calculations_and_summary(from_number, lead):
     update_lead_state(lead, 'end')
     lead.question_count = 0
     db.session.commit()
+
 
 def formatted_original_loan_amount(amount):
     return f"RM{amount:,.2f}"
