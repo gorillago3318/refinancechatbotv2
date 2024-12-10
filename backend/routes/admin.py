@@ -2,9 +2,15 @@
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+<<<<<<< HEAD
 from backend.decorators import admin_required  # ✅ Fixed import
 from backend.extensions import db  # ✅ Fixed import
 from backend.models import Lead, User  # ✅ Fixed import
+=======
+from decorators import admin_required
+from extensions import db
+from models import Lead, User
+>>>>>>> 870f5012dd82d8904a3a273ae3903fd4423d0643
 import logging
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
