@@ -1,22 +1,12 @@
 # backend/helpers.py
 
-<<<<<<< HEAD
 from backend.models import Lead  # ✅ Fixed import
 from backend.extensions import db  # ✅ Fixed import
-=======
-from backend.models import Lead
-from backend.extensions import db
->>>>>>> 870f5012dd82d8904a3a273ae3903fd4423d0643
+
 
 def get_lead(phone_number):
     """
     Retrieves the Lead instance based on the phone number.
-<<<<<<< HEAD
-    """
-    return Lead.query.filter_by(phone_number=phone_number).first()
-
-
-=======
 
     Parameters:
         phone_number (str): The WhatsApp number of the user.
@@ -26,7 +16,7 @@ def get_lead(phone_number):
     """
     return Lead.query.filter_by(phone_number=phone_number).first()
 
->>>>>>> 870f5012dd82d8904a3a273ae3903fd4423d0643
+
 def update_lead_state(lead, new_state):
     """
     Updates the conversation state for a Lead.
@@ -38,6 +28,7 @@ def update_lead_state(lead, new_state):
     if lead:
         lead.conversation_state = new_state
         db.session.commit()
+
 
 def reset_lead_state(lead):
     """

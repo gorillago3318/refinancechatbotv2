@@ -2,23 +2,11 @@
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-<<<<<<< HEAD
 from backend.decorators import agent_required  # ✅ Fixed import
 from backend.extensions import db  # ✅ Fixed import
 from backend.models import Lead  # ✅ Fixed import
-=======
-from decorators import agent_required
-from extensions import db
-from models import Lead
->>>>>>> 870f5012dd82d8904a3a273ae3903fd4423d0643
 import logging
 
-agent_bp = Blueprint('agent', __name__, url_prefix='/api/agent')
-
-<<<<<<< HEAD
-
-=======
->>>>>>> 870f5012dd82d8904a3a273ae3903fd4423d0643
 @agent_bp.route('/leads', methods=['GET'])
 @jwt_required()
 @agent_required
