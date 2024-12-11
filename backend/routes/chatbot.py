@@ -1,12 +1,13 @@
 import os
 from flask import Blueprint, request, jsonify
 from backend.helpers import get_lead, update_lead_state, reset_lead_state
-from backend.utils.whatsapp import send_whatsapp_message
+from backend.utils.whatsapp import send_whatsapp_message, send_message_to_admin
 from backend.extensions import db
 import json
 import logging
 import re
-from backend.models import Lead
+from backend.utils.calculation import calculate_savings, format_years_saved, find_best_bank_rate
+from backend.models import Lead, BankRate
 
 chatbot_bp = Blueprint('chatbot', __name__)
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def verify_webhook(req):
     mode = req.args.get('hub.mode')
     token = req.args.get('hub.verify_token')
     challenge = req.args.get('hub.challenge')
-
+    
     if mode and token:
         if mode == 'subscribe' and token == verify_token:
             return challenge, 200
@@ -35,106 +36,162 @@ def verify_webhook(req):
 
 def handle_incoming_message(req):
     data = req.get_json()
+    
     try:
-        message = data['entry'][0]['changes'][0]['value']['messages'][0]
+        entry = data['entry'][0]
+        changes = entry['changes'][0]
+        value = changes['value']
+        messages = value.get('messages', [])
+
+        if not messages:
+            return jsonify({"status": "no messages"}), 200
+
+        message = messages[0]
         from_number = message['from']
         text = message.get('text', {}).get('body', '').strip()
     except (KeyError, IndexError) as e:
-        logger.error(f"Invalid payload structure: {e}")
         return jsonify({"error": "Invalid payload"}), 400
 
-    # Check if a lead exists for this phone number
     lead = get_lead(from_number)
     if not lead:
         lead = Lead(phone_number=from_number)
         db.session.add(lead)
         db.session.commit()
-
-    # Handle 'restart' command
-    if text.lower() == 'restart':
-        reset_lead_state(lead)
-        send_whatsapp_message(from_number, "Conversation restarted. Please provide your Name.")
+        
+        welcome_msg = (
+            "💡 Welcome to FinZo!\n\n" 
+            "I'm FinZo, your AI Refinancing Assistant. I'll guide you through the refinancing process " 
+            "and provide a detailed, accurate report based on your loan details.\n\n"
+            "At any time, you may type 'restart' to start over.\n\n"
+            "First, may I have your name?"
+        )
+        send_whatsapp_message(from_number, welcome_msg)
         update_lead_state(lead, 'get_name')
-        return jsonify({"status": "conversation restarted"}), 200
+        return jsonify({"status": "conversation started"}), 200
 
-    # Determine the current state of the user's conversation
     state = lead.conversation_state
-
-    # 1️⃣ ASK FOR NAME
-    if state == 'START' or state == 'get_name':
-        if validate_name(text):
-            lead.name = text.strip()
+    
+    if state == 'get_name':
+        lead.name = text
+        update_lead_state(lead, 'get_age')
+        send_whatsapp_message(from_number, "Thank you, {}!\nPlease provide your age.\n\n💡 Guide: Your age must be between 18 and 70.".format(text))
+        return jsonify({"status": "name captured"}), 200
+    
+    elif state == 'get_age':
+        if text.isdigit() and 18 <= int(text) <= 70:
+            lead.age = int(text)
             update_lead_state(lead, 'get_loan_amount')
-            db.session.commit()
-            send_whatsapp_message(from_number, f"Thank you, {lead.name}! Next, please provide your original loan amount in RM (e.g., 200000).")
-            return jsonify({"status": "name received"}), 200
+            send_whatsapp_message(from_number, "Please provide your original loan amount.\n\n💡 Guide: Enter in one of these formats: 200k, 200,000, or RM200,000.")
         else:
-            send_whatsapp_message(from_number, "Please provide your name (letters only).")
-            return jsonify({"status": "awaiting name"}), 200
-
-    # 2️⃣ ASK FOR LOAN AMOUNT
+            send_whatsapp_message(from_number, "Invalid age. Please enter a valid age (between 18 and 70).")
+        return jsonify({"status": "age captured"}), 200
+    
     elif state == 'get_loan_amount':
-        loan_amount = extract_number(text)
-        if loan_amount and loan_amount > 0:
-            lead.original_loan_amount = loan_amount
+        amount = extract_number(text)
+        if amount:
+            lead.original_loan_amount = amount
             update_lead_state(lead, 'get_tenure')
-            db.session.commit()
-            send_whatsapp_message(from_number, f"Great! Your loan amount is RM {loan_amount}. Next, please provide the loan tenure in years (e.g., 30).")
-            return jsonify({"status": "loan amount received"}), 200
+            send_whatsapp_message(from_number, "Next, provide the original loan tenure in years approved for your loan.\n\n💡 Guide: Enter the tenure as a whole number (e.g., 30).")
         else:
-            send_whatsapp_message(from_number, "Please enter a valid loan amount (e.g., 200000).")
-            return jsonify({"status": "awaiting loan amount"}), 200
-
-    # 3️⃣ ASK FOR LOAN TENURE
+            send_whatsapp_message(from_number, "Invalid amount. Please provide a valid loan amount (e.g., 200k, 200,000, or RM200,000).")
+        return jsonify({"status": "loan amount captured"}), 200
+    
     elif state == 'get_tenure':
-        tenure = extract_number(text)
-        if tenure and 1 <= tenure <= 40:  # Tenure should be between 1 and 40 years
-            lead.original_loan_tenure = int(tenure)
+        if text.isdigit():
+            lead.original_loan_tenure = int(text)
             update_lead_state(lead, 'get_repayment')
-            db.session.commit()
-            send_whatsapp_message(from_number, f"Got it! Your loan tenure is {tenure} years. Finally, please provide your current monthly repayment (e.g., 1200).")
-            return jsonify({"status": "tenure received"}), 200
+            send_whatsapp_message(from_number, "Please provide your current monthly repayment.\n\n💡 Guide: Enter in one of these formats: 1.2k, 1,200, or RM1,200.")
         else:
-            send_whatsapp_message(from_number, "Please enter a valid tenure (between 1 and 40 years).")
-            return jsonify({"status": "awaiting tenure"}), 200
+            send_whatsapp_message(from_number, "Invalid tenure. Please enter the tenure as a whole number (e.g., 30).")
+        return jsonify({"status": "tenure captured"}), 200
 
-    # 4️⃣ ASK FOR CURRENT MONTHLY REPAYMENT
     elif state == 'get_repayment':
-        repayment = extract_number(text)
-        if repayment and repayment > 0:
-            lead.current_repayment = repayment
-            update_lead_state(lead, 'complete')
-            db.session.commit()
-            send_summary_to_user(from_number, lead)
-            return jsonify({"status": "repayment received"}), 200
+        amount = extract_number(text)
+        if amount:
+            lead.current_repayment = amount
+            update_lead_state(lead, 'get_optional_tenure')
+            send_whatsapp_message(from_number, "If you'd like, provide the remaining tenure of your loan.\nType 'skip' to skip this step.")
         else:
-            send_whatsapp_message(from_number, "Please enter a valid monthly repayment amount (e.g., 1200).")
-            return jsonify({"status": "awaiting repayment"}), 200
+            send_whatsapp_message(from_number, "Invalid amount. Please provide your monthly repayment.")
+        return jsonify({"status": "repayment captured"}), 200
+    
+    elif state == 'get_optional_tenure':
+        if text.lower() == 'skip':
+            update_lead_state(lead, 'get_optional_interest')
+            send_whatsapp_message(from_number, "If you'd like, provide the current interest rate of your loan (e.g., 4.5%).\nType 'skip' to skip this step.")
+        elif text.isdigit():
+            lead.remaining_tenure = int(text)
+            update_lead_state(lead, 'get_optional_interest')
+            send_whatsapp_message(from_number, "If you'd like, provide the current interest rate of your loan (e.g., 4.5%).\nType 'skip' to skip this step.")
+        else:
+            send_whatsapp_message(from_number, "Invalid tenure. Please provide the remaining tenure as a whole number (e.g., 20) or type 'skip'.")
+        return jsonify({"status": "optional tenure captured"}), 200
+    
+    elif state == 'get_optional_interest':
+        if text.lower() == 'skip':
+            update_lead_state(lead, 'calculate')
+            # Call function to calculate and display summary
+        else:
+            try:
+                interest = float(text)
+                if 3 <= interest <= 10:
+                    lead.interest_rate = interest
+                    update_lead_state(lead, 'calculate')
+                    # Call function to calculate and display summary
+                else:
+                    send_whatsapp_message(from_number, "Invalid rate. Provide a rate between 3% and 10%.")
+            except ValueError:
+                send_whatsapp_message(from_number, "Invalid rate. Please provide a percentage (e.g., 4.5%).")
 
-    else:
-        send_whatsapp_message(from_number, "I'm not sure what to do. Please type 'restart' to start over.")
-        return jsonify({"status": "unknown state"}), 200
-
-
-def send_summary_to_user(phone_number, lead):
-    summary = (
-        f"Thanks, {lead.name}! Here’s a summary of your details:\n\n"
-        f"💰 Loan Amount: RM{lead.original_loan_amount}\n"
-        f"📆 Tenure: {lead.original_loan_tenure} years\n"
-        f"📉 Monthly Repayment: RM{lead.current_repayment}\n\n"
-        "An agent will contact you shortly. If you would like to change any details, type 'restart' to start over."
+def calculate_and_display_summary(lead, from_number):
+    """ Calculate the refinance savings and send the summary to the user and admin. """
+    best_rate = find_best_bank_rate(lead.original_loan_amount)
+    estimated_new_repayment, monthly_savings, yearly_savings, total_savings = calculate_savings(
+        original_loan_amount=lead.original_loan_amount,
+        original_tenure=lead.original_loan_tenure,
+        current_repayment=lead.current_repayment,
+        interest_rate=best_rate
     )
-    send_whatsapp_message(phone_number, summary)
+    years_saved = format_years_saved(total_savings / lead.current_repayment)
+    
+    lead.new_repayment = estimated_new_repayment
+    lead.monthly_savings = monthly_savings
+    lead.yearly_savings = yearly_savings
+    lead.total_savings = total_savings
+    lead.years_saved = years_saved
+    db.session.commit()
+    
+    if total_savings > 0:
+        summary_message = (
+            f"💰 Congratulations! You can save RM {total_savings:,.2f} if you refinance.\n\n"
+            "Our specialist will assist you with a detailed report and refinancing guidance.\n"
+            "This service is 100% free of charge!\n\n"
+            "📞 Need help? Contact our admin directly: wa.me/60167177813."
+        )
+    else:
+        summary_message = (
+            "🎉 Great news! Your current loan is one of the best rates available.\n\n"
+            "Our specialist will continue to monitor rates for better deals. Stay tuned!"
+        )
+    send_whatsapp_message(from_number, summary_message)
+    
+    admin_message = (
+        f"New Lead Alert!\n\n"
+        f"📱 Phone: wa.me/{lead.phone_number}\n"
+        f"👤 Name: {lead.name}\n"
+        f"🕒 Age: {lead.age}\n"
+        f"💰 Loan Amount: RM {lead.original_loan_amount:,.2f}\n"
+        f"📆 Tenure: {lead.original_loan_tenure} years\n"
+        f"💸 Current Repayment: RM {lead.current_repayment:,.2f}\n"
+        f"⏳ Remaining Tenure: {lead.remaining_tenure or 'Not provided'}\n"
+        f"📈 Interest Rate: {lead.interest_rate or 'Not provided'}%\n"
+    )
+    send_message_to_admin(admin_message)
 
 
-def validate_name(text):
-    """ Checks if the text is a valid name (letters only) """
-    return re.match(r'^[A-Za-z\s]+$', text)
-
-
-def extract_number(text):
-    """ Extracts a numeric value from the user's input """
-    match = re.search(r'\d+(\.\d+)?', text)
-    if match:
-        return float(match.group())
-    return None
+def process_calculate_state(lead, from_number):
+    """ Process the 'calculate' state. """
+    calculate_and_display_summary(lead, from_number)
+    update_lead_state(lead, 'end')
+    send_whatsapp_message(from_number, "If you have any questions about housing loans or refinancing, I'm here to help!")
+    return jsonify({"status": "summary displayed"}), 200
