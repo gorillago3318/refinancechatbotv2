@@ -1,6 +1,7 @@
 import os
 from flask import Flask
 from dotenv import load_dotenv
+from backend.routes.chatbot import chatbot_bp
 
 # Importing these outside to avoid circular imports later
 from backend.extensions import db, migrate

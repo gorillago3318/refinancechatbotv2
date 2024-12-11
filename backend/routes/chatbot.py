@@ -1,5 +1,5 @@
 import logging
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Blueprint
 
 # Set up Flask app
 app = Flask(__name__)
@@ -7,8 +7,9 @@ app = Flask(__name__)
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+chatbot_bp = Blueprint('chatbot', __name__)
 
-@app.route('/api/chatbot/webhook', methods=['POST'])
+@chatbot_bp.route('/webhook', methods=['POST'])
 def whatsapp_webhook():
     """
     Webhook to handle incoming WhatsApp messages.
@@ -135,7 +136,6 @@ def handle_user_response(state, text, lead):
             except ValueError:
                 logging.info(f"User skipped entering a tenure: {text}")
             
-            # Calculate refinance savings
             try:
                 savings = calculate_refinance_savings(
                     original_loan_amount=lead.loan_amount,
@@ -158,7 +158,6 @@ def handle_user_response(state, text, lead):
                     logging.error(f"Failed to calculate refinance savings for lead: {lead}")
                     update_lead_state(lead, 'error')
                     return "An error occurred while calculating your refinance savings. Please try again later."
-            
             except Exception as e:
                 logging.error(f"Error calculating refinance savings: {e}", exc_info=True)
                 update_lead_state(lead, 'error')
@@ -171,5 +170,3 @@ def handle_user_response(state, text, lead):
     except Exception as e:
         logging.error(f"Error handling user response for state {state}: {e}", exc_info=True)
         return "An error occurred. Please try again later."
-
-
