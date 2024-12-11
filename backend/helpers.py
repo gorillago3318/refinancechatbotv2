@@ -13,12 +13,18 @@ def get_lead(phone_number):
         return None
 
 def update_lead_state(lead, new_state):
+    """
+    Update the state of the lead and save it.
+    """
+    if not lead:
+        logging.error(f"Cannot update state because 'lead' is None.")
+        return
     try:
-        lead.conversation_state = new_state
-        db.session.commit()
-        logging.info(f"Lead {lead.phone_number} state updated to '{new_state}'")
+        lead.state = new_state
+        lead.save()
+        logging.info(f"Lead with phone_number {getattr(lead, 'phone_number', 'Unknown')} updated to state '{new_state}'")
     except Exception as e:
-        logging.error(f"Failed to update lead state for {lead.phone_number}: {e}")
+        logging.error(f"Failed to update lead state for phone_number {getattr(lead, 'phone_number', 'Unknown')}: {e}")
 
 def reset_lead_state(phone_number):
     try:
