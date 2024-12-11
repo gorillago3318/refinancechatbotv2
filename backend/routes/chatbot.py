@@ -6,7 +6,7 @@ from backend.extensions import db
 import json
 import logging
 import re
-from backend.utils.calculation import calculate_savings, format_years_saved, find_best_bank_rate
+from backend.utils.calculation import calculate_savings, format_years_saved, find_best_bank_rate, extract_number
 from backend.models import Lead, BankRate
 
 chatbot_bp = Blueprint('chatbot', __name__)
