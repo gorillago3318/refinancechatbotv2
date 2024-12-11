@@ -4,15 +4,13 @@ import os
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-<<<<<<< HEAD
+import os
+from flask import Blueprint, request, jsonify
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from backend.extensions import db  # ✅ Fixed import
 from backend.models import User  # ✅ Fixed import
 from backend.decorators import user_required, admin_required, agent_required, referrer_required  # ✅ Fixed import
-=======
-from extensions import db
-from models import User
-from decorators import user_required, admin_required, agent_required, referrer_required
->>>>>>> 870f5012dd82d8904a3a273ae3903fd4423d0643
 import logging
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
