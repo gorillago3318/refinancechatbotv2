@@ -1,11 +1,12 @@
-# backend/routes/agent.py
-
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.decorators import agent_required  # ✅ Fixed import
 from backend.extensions import db  # ✅ Fixed import
 from backend.models import Lead  # ✅ Fixed import
 import logging
+
+# ✅ Initialize the Blueprint (This was missing)
+agent_bp = Blueprint('agent', __name__)
 
 @agent_bp.route('/leads', methods=['GET'])
 @jwt_required()
@@ -22,8 +23,8 @@ def get_agent_leads():
             'id': lead.id,
             'name': lead.name,
             'age': lead.age,
-            'loan_amount': lead.loan_amount,
-            'loan_tenure': lead.loan_tenure,
+            'loan_amount': lead.original_loan_amount,  # This was previously incorrect
+            'loan_tenure': lead.original_loan_tenure,  # Corrected to match Lead model fields
             'current_repayment': lead.current_repayment,
             'status': lead.status,
             'created_at': lead.created_at,
