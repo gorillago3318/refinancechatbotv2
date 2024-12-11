@@ -1,7 +1,7 @@
 import logging
 from flask import Flask, request, jsonify
 from backend.helpers import update_lead_state, get_or_create_lead
-from backend.calculations import calculate_refinance_savings
+from backend.utils.calculation import calculate_refinance_savings
 
 # Set up Flask app
 app = Flask(__name__)
