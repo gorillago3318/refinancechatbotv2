@@ -1,13 +1,12 @@
 import logging
 from flask import Flask, request, jsonify
-from backend.helpers import update_lead_state, get_or_create_lead
-from backend.utils.calculation import calculate_refinance_savings
 
 # Set up Flask app
 app = Flask(__name__)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 @app.route('/api/chatbot/webhook', methods=['POST'])
 def whatsapp_webhook():
@@ -19,12 +18,14 @@ def whatsapp_webhook():
         if not payload:
             logging.error("Payload is empty.")
             return jsonify({'error': 'Empty payload'}), 400
-        
+
         logging.info(f"Incoming payload: {payload}")
 
         # Extract message safely
         try:
-            messages = payload['entry'][0]['changes'][0]['value']['messages']
+            messages = payload.get('entry', [{}])[0].get('changes', [{}])[0].get('value', {}).get('messages', [])
+            if not messages:
+                raise KeyError("Missing 'messages' in payload.")
         except (KeyError, IndexError) as e:
             logging.error(f"Invalid payload structure: {payload}, Error: {str(e)}", exc_info=True)
             return jsonify({'error': 'Invalid payload structure: missing messages'}), 400
@@ -50,7 +51,9 @@ def handle_incoming_message(phone_number, text):
     Handle the incoming WhatsApp message and state transitions.
     """
     try:
-        # Retrieve or create a lead
+        # Import here to avoid circular imports
+        from backend.helpers import get_or_create_lead
+
         lead = get_or_create_lead(phone_number)
         if not lead:
             logging.error(f"Could not retrieve or create a lead for phone number: {phone_number}")
@@ -74,6 +77,10 @@ def handle_user_response(state, text, lead):
     Handle user responses based on the current state.
     """
     try:
+        # Import here to avoid circular imports
+        from backend.helpers import update_lead_state
+        from backend.utils.calculation import calculate_refinance_savings
+
         if state == 'start':
             update_lead_state(lead, 'get_name')
             return "Welcome! What's your name?"
@@ -86,7 +93,7 @@ def handle_user_response(state, text, lead):
         elif state == 'get_age':
             try:
                 age = int(text)
-                if age < 18 or age > 100:
+                if not 18 <= age <= 100:
                     return "Please provide a valid age between 18 and 100."
                 lead.age = age
                 update_lead_state(lead, 'get_loan_amount')
@@ -110,11 +117,11 @@ def handle_user_response(state, text, lead):
         elif state == 'get_optional_interest_rate':
             try:
                 interest_rate = float(text)
-                if interest_rate <= 0 or interest_rate > 100:
+                if not 0 < interest_rate <= 100:
                     return "Please provide a valid interest rate (0-100%)."
                 lead.interest_rate = interest_rate
             except ValueError:
-                logging.info("User skipped entering an interest rate.")
+                logging.info(f"User skipped entering an interest rate: {text}")
             
             update_lead_state(lead, 'get_optional_tenure')
             return "What is the remaining tenure for your current loan (optional)?"
@@ -122,20 +129,20 @@ def handle_user_response(state, text, lead):
         elif state == 'get_optional_tenure':
             try:
                 tenure = int(text)
-                if tenure <= 0 or tenure > 50:
+                if not 1 <= tenure <= 50:
                     return "Please provide a valid tenure between 1 and 50 years."
                 lead.tenure = tenure
             except ValueError:
-                logging.info("User skipped entering a tenure.")
+                logging.info(f"User skipped entering a tenure: {text}")
             
             # Calculate refinance savings
             try:
                 savings = calculate_refinance_savings(
                     original_loan_amount=lead.loan_amount,
-                    original_tenure_years=lead.tenure if lead.tenure else 30,  # Default to 30 years
-                    current_monthly_repayment=1500,  # Example monthly repayment
-                    new_interest_rate=lead.interest_rate if lead.interest_rate else 3.5,  # Default to 3.5%
-                    new_tenure_years=30  # Default to 30 years
+                    original_tenure_years=lead.tenure if lead.tenure else 30, 
+                    current_monthly_repayment=1500, 
+                    new_interest_rate=lead.interest_rate if lead.interest_rate else 3.5, 
+                    new_tenure_years=30
                 )
 
                 if savings:
@@ -166,6 +173,3 @@ def handle_user_response(state, text, lead):
         return "An error occurred. Please try again later."
 
 
-# Run the Flask app if this script is executed
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
