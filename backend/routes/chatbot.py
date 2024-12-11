@@ -7,7 +7,7 @@ from backend.utils.calculation import calculate_refinance_savings
 app = Flask(__name__)
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 @app.route('/api/chatbot/webhook', methods=['POST'])
 def whatsapp_webhook():
@@ -16,6 +16,10 @@ def whatsapp_webhook():
     """
     try:
         payload = request.get_json()
+        if not payload:
+            logging.error("Payload is empty.")
+            return jsonify({'error': 'Empty payload'}), 400
+        
         logging.info(f"Incoming payload: {payload}")
 
         # Extract message safely
@@ -23,7 +27,7 @@ def whatsapp_webhook():
             messages = payload['entry'][0]['changes'][0]['value']['messages']
         except (KeyError, IndexError) as e:
             logging.error(f"Invalid payload structure: {payload}, Error: {str(e)}")
-            return "Invalid payload structure: 'messages'", 400
+            return jsonify({'error': 'Invalid payload structure: missing messages'}), 400
 
         for message in messages:
             text = message.get('text', {}).get('body', '').strip()
@@ -37,7 +41,7 @@ def whatsapp_webhook():
             return jsonify({'response': response})
 
     except Exception as e:
-        logging.error(f"Error handling incoming message: {e}")
+        logging.error(f"Error handling incoming message: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 
@@ -45,19 +49,24 @@ def handle_incoming_message(phone_number, text):
     """
     Handle the incoming WhatsApp message and state transitions.
     """
-    # Retrieve or create a lead
-    lead = get_or_create_lead(phone_number)
-    if not lead:
-        logging.error("Could not retrieve or create a lead.")
-        return "Error retrieving lead information. Please try again later."
+    try:
+        # Retrieve or create a lead
+        lead = get_or_create_lead(phone_number)
+        if not lead:
+            logging.error("Could not retrieve or create a lead.")
+            return "Error retrieving lead information. Please try again later."
 
-    # Default state
-    state = lead.state if lead and lead.state else 'start'
-    logging.info(f"Incoming message from {phone_number}: {text} (state: {state})")
+        # Default state
+        state = lead.state if lead and lead.state else 'start'
+        logging.info(f"Incoming message from {phone_number}: {text} (state: {state})")
 
-    # Handle user response based on current state
-    response = handle_user_response(state, text, lead)
-    return response
+        # Handle user response based on current state
+        response = handle_user_response(state, text, lead)
+        return response
+
+    except Exception as e:
+        logging.error(f"Error handling incoming message from {phone_number}: {e}", exc_info=True)
+        return "An error occurred while handling your message. Please try again later."
 
 
 def handle_user_response(state, text, lead):
@@ -136,6 +145,11 @@ def handle_user_response(state, text, lead):
         else:
             logging.error(f"Invalid state: {state}")
             return "Invalid state. Please try again or type 'restart' to start over."
+    
     except Exception as e:
-        logging.error(f"Error handling user response for state {state}: {e}")
+        logging.error(f"Error handling user response for state {state}: {e}", exc_info=True)
         return "An error occurred. Please try again later."
+
+# Run the Flask app if this script is executed
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
