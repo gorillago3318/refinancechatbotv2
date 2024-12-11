@@ -20,6 +20,7 @@ def whatsapp_webhook():
     elif request.method == 'POST':
         return handle_incoming_message(request)
     else:
+        # Return proper response if request method is not allowed
         return jsonify({"error": "Method not allowed"}), 405
 
 def verify_webhook(req):
@@ -36,13 +37,14 @@ def verify_webhook(req):
         else:
             logger.warning('WEBHOOK_VERIFICATION_FAILED: Token mismatch')
             return 'Verification token mismatch', 403
+    
     return 'Hello World', 200
 
 def handle_incoming_message(req):
-    data = req.get_json()
-    logger.debug(f"Received data: {json.dumps(data)}")
-
     try:
+        data = req.get_json()
+        logger.debug(f"Received data: {json.dumps(data)}")
+
         entry = data['entry'][0]
         changes = entry['changes'][0]
         value = changes['value']
@@ -56,65 +58,74 @@ def handle_incoming_message(req):
         from_number = message['from']
         text = message.get('text', {}).get('body', '').strip()
         logger.info(f"Received message from {from_number}: {text}")
-    except (KeyError, IndexError) as e:
-        logger.error(f"Invalid payload structure: {e}")
-        return jsonify({"error": "Invalid payload"}), 400
 
-    # 'restart' command
-    if text.lower() == 'restart':
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        logger.error(f"Invalid payload structure: {e}")
+        return jsonify({"error": "Invalid payload"}), 400  # Return response on error
+
+    try:
+        if text.lower() == 'restart':
+            lead = get_lead(from_number)
+            if lead:
+                reset_lead_state(lead)
+            else:
+                lead = Lead(phone_number=from_number)
+                db.session.add(lead)
+                db.session.commit()
+
+            restart_msg = (
+                "Conversation restarted.\n\n"
+                "Welcome to FinZo!\n\n"
+                "I am FinZo, your AI Refinancing Assistant. I will guide you through the refinancing process and "
+                "provide a detailed, accurate report based on your loan details.\n\n"
+                "At any time, you may type 'restart' to start over.\n\n"
+                "First, may I have your Name?"
+            )
+            send_whatsapp_message(from_number, restart_msg)
+            update_lead_state(lead, 'get_name')
+            return jsonify({"status": "conversation restarted"}), 200
+
         lead = get_lead(from_number)
-        if lead:
-            reset_lead_state(lead)
-        else:
+        if not lead:
             lead = Lead(phone_number=from_number)
             db.session.add(lead)
             db.session.commit()
-
-        restart_msg = (
-            "Conversation restarted.\n\n"
-            "Welcome to FinZo!\n\n"
-            "I am FinZo, your AI Refinancing Assistant. I will guide you through the refinancing process and "
-            "provide a detailed, accurate report based on your loan details.\n\n"
-            "At any time, you may type 'restart' to start over.\n\n"
-            "First, may I have your Name?"
-        )
-        send_whatsapp_message(from_number, restart_msg)
-        update_lead_state(lead, 'get_name')
-        return jsonify({"status": "conversation restarted"}), 200
-
-    lead = get_lead(from_number)
-    if not lead:
-        lead = Lead(phone_number=from_number)
-        db.session.add(lead)
-        db.session.commit()
-        greeting = (
-            "Welcome to FinZo!\n\n"
-            "I am FinZo, your AI Refinancing Assistant. I will help you understand your refinancing options and "
-            "provide an accurate report based on your details.\n\n"
-            "At any time, you may type 'restart' to start over.\n\n"
-            "First, may I have your Name?"
-        )
-        send_whatsapp_message(from_number, greeting)
-        update_lead_state(lead, 'get_name')
-        return jsonify({"status": "greeting sent"}), 200
-
-    state = lead.conversation_state
-
-    if state == 'end':
-        lead.question_count += 1
-        db.session.commit()
-        if lead.question_count > 5:
-            contact_admin_prompt = (
-                "It appears you have multiple questions. For further assistance, please contact our admin directly:\n\n"
-                "https://wa.me/60167177813"
+            greeting = (
+                "Welcome to FinZo!\n\n"
+                "I am FinZo, your AI Refinancing Assistant. I will help you understand your refinancing options and "
+                "provide an accurate report based on your details.\n\n"
+                "At any time, you may type 'restart' to start over.\n\n"
+                "First, may I have your Name?"
             )
-            send_whatsapp_message(from_number, contact_admin_prompt)
-            return jsonify({"status": "admin contact prompted"}), 200
+            send_whatsapp_message(from_number, greeting)
+            update_lead_state(lead, 'get_name')
+            return jsonify({"status": "greeting sent"}), 200
 
-        sanitized_question = sanitize_input(text)
-        response = handle_user_question(sanitized_question)
-        send_whatsapp_message(from_number, response)
-        return jsonify({"status": "question answered"}), 200
+        state = lead.conversation_state
+
+        if state == 'end':
+            lead.question_count += 1
+            db.session.commit()
+            if lead.question_count > 5:
+                contact_admin_prompt = (
+                    "It appears you have multiple questions. For further assistance, please contact our admin directly:\n\n"
+                    "https://wa.me/60167177813"
+                )
+                send_whatsapp_message(from_number, contact_admin_prompt)
+                return jsonify({"status": "admin contact prompted"}), 200
+
+            sanitized_question = sanitize_input(text)
+            response = handle_user_question(sanitized_question)
+            send_whatsapp_message(from_number, response)
+            return jsonify({"status": "question answered"}), 200
+
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+    # Final catch-all return statement for unhandled paths
+    logger.warning(f"No action matched for message from {from_number}")
+    return jsonify({"status": "no action taken"}), 200  # Always return a Flask response
 
 def sanitize_input(text):
     return re.sub(r'[^\w\s,.%-]', '', text)
