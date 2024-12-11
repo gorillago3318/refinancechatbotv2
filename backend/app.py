@@ -33,13 +33,12 @@ def create_app():
 
     # Register blueprints (Import here to avoid circular import issues)
     with app.app_context():
-        from backend.routes.chatbot import chatbot_bp
+        from backend.routes.chatbot import chatbot_bp  # Move import here
         app.register_blueprint(chatbot_bp, url_prefix='/api/chatbot')
         
         from backend import models  # Import models here so they are loaded properly
 
     return app
-
 
 # Create the app instance
 app = create_app()
