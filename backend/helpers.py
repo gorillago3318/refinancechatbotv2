@@ -17,42 +17,24 @@ def get_lead(from_number):
         return None
 
 def reset_lead_state(from_number):
-    """
-    Resets all the key attributes of the lead (name, age, loan amount, etc.) 
-    and sets the conversation state back to 'get_name'.
-    """
+    """Reset the state of the lead to start from the beginning."""
     lead = get_lead(from_number)
-    if not lead:
-        logging.warning(f"No lead found for phone_number {from_number}. Creating a new lead.")
-        lead = Lead(phone_number=from_number)
-        db.session.add(lead)
-    
-    lead.name = None
-    lead.age = None
-    lead.original_loan_amount = None
-    lead.original_loan_tenure = None
-    lead.current_repayment = None
-    lead.conversation_state = 'get_name'  # Reset to initial state
-    db.session.commit()
-
+    if isinstance(lead, dict):  # If it's a dictionary
+        lead['name'] = None
+    elif hasattr(lead, 'name'):  # If it's an object
+        lead.name = None
+    else:
+        logging.error(f"Lead is neither a dict nor an object: {lead}")
+        
 def update_lead_state(lead, new_state):
-    """
-    Update the lead's conversation state only.
-    """
-    if not lead:
-        logging.warning(f"Lead not found or is None. Cannot update state to '{new_state}'")
-        return {"status": "error", "message": "Lead not found"}
-    
-    if not new_state:
-        logging.warning(f"New state is None or empty. Cannot update state.")
-        return {"status": "error", "message": "New state is missing"}
-    
+    """Update the state of a lead to a new state."""
     try:
-        lead.conversation_state = new_state
-        db.session.commit()
-        logging.info(f"Lead with phone_number {lead.phone_number} updated to state '{new_state}'")
-        return {"status": "success", "message": f"Lead state updated to '{new_state}'"}
+        if isinstance(lead, dict):  # If it's a dictionary
+            lead['state'] = new_state
+        elif hasattr(lead, 'state'):  # If it's an object
+            lead.state = new_state
+        else:
+            logging.error(f"Lead is neither a dict nor an object: {lead}")
+        logging.info(f"Lead with phone_number {lead['phone_number']} updated to state '{new_state}'")
     except Exception as e:
-        logging.error(f"Failed to update lead state for phone_number {lead.phone_number}: {e}")
-        db.session.rollback()
-        return {"status": "error", "message": "Failed to update lead state"}
+        logging.error(f"Failed to update lead state for phone_number {lead['phone_number']}: {e}")
