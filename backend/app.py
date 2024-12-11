@@ -1,49 +1,64 @@
+import logging
 import os
 from flask import Flask
 from dotenv import load_dotenv
-from backend.routes.chatbot import chatbot_bp
-
-# Importing these outside to avoid circular imports later
-from backend.extensions import db, migrate
+from backend.extensions import db, migrate  # Importing db and migrate for SQLAlchemy and migrations
 
 def create_app():
-    """
-    Application Factory to create Flask app
-    """
-    # Load environment variables from .env file
-    load_dotenv()
-
     app = Flask(__name__)
 
-    # Fix DATABASE_URL if it uses 'postgres://' instead of 'postgresql://'
+    # Load environment variables
+    load_dotenv()
+
+    # Configure database
     database_url = os.getenv('DATABASE_URL', '')
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///default.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your_default_secret_key')
-
-    # Log important app configurations
-    app.logger.info(f"Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}")
-    app.logger.info(f"SQLALCHEMY_TRACK_MODIFICATIONS: {app.config['SQLALCHEMY_TRACK_MODIFICATIONS']}")
 
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # Register blueprints (Import here to avoid circular import issues)
-    with app.app_context():
-        from backend.routes.chatbot import chatbot_bp  # Move import here
+    # Debug log: Check files in backend/routes/
+    try:
+        routes_dir = os.path.join(os.getcwd(), 'backend', 'routes')
+        files_in_routes = os.listdir(routes_dir)
+        print(f"🗂️ Contents of backend/routes: {files_in_routes}")
+    except Exception as e:
+        print(f"❌ Failed to list backend/routes directory: {e}")
+
+    # **Start of import for chatbot_bp with logging**
+    try:
+        from backend.routes.chatbot import chatbot_bp  # Correct import for chatbot_bp
+        print("✅ Successfully imported chatbot_bp from backend.routes.chatbot")
+    except ImportError as e:
+        print(f"❌ ImportError: Failed to import chatbot_bp: {e}")
+    except Exception as e:
+        print(f"❌ Unexpected error while importing chatbot_bp: {e}")
+    # **End of import for chatbot_bp**
+
+    # Register the chatbot blueprint
+    try:
         app.register_blueprint(chatbot_bp, url_prefix='/api/chatbot')
-        
-        from backend import models  # Import models here so they are loaded properly
+        print("✅ Successfully registered chatbot_bp blueprint at /api/chatbot")
+    except Exception as e:
+        print(f"❌ Failed to register chatbot_bp blueprint: {e}")
+
+    # Import models (if necessary)
+    with app.app_context():
+        try:
+            from backend import models  # Import models here if required
+            print("✅ Successfully imported models from backend/models.py")
+        except Exception as e:
+            print(f"❌ Failed to import models from backend/models.py: {e}")
 
     return app
 
-# Create the app instance
 app = create_app()
 
-# Run only if this script is executed directly
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.getenv('PORT', 5000)))
+    app.run(debug=True)
