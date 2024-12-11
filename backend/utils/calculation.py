@@ -1,4 +1,5 @@
 import math
+import re
 from backend.models import BankRate
 from backend.extensions import db
 
@@ -50,21 +51,12 @@ def format_years_saved(total_months):
 
 
 def extract_number(text):
-    """
-    Extracts the first number (integer or decimal) from a string.
-    
-    Args:
-        text (str): The input text
-    
-    Returns:
-        float: The extracted number
-    """
-    import re
-    match = re.search(r'\d+(\.\d+)?', text.replace(',', '').replace('k', '000'))
-    if match:
-        return float(match.group())
-    return None
-
+    """Extract numeric value from a string. Supports 200k, 200,000, RM200,000, etc."""
+    text = text.lower().replace(',', '')  # Remove commas
+    if 'k' in text:
+        return float(text.replace('k', '')) * 1000  # Handle "k" as thousand
+    match = re.search(r'\d+(\.\d+)?', text)
+    return float(match.group()) if match else None
 
 def find_best_bank_rate(loan_amount):
     """
