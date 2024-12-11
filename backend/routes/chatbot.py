@@ -1,13 +1,11 @@
 import os
+import logging
 from flask import Blueprint, request, jsonify
 from backend.helpers import get_lead, update_lead_state, reset_lead_state
-from backend.utils.whatsapp import send_whatsapp_message, send_message_to_admin
+from backend.utils.whatsapp import send_whatsapp_message
 from backend.extensions import db
-import json
-import logging
-import re
-from backend.utils.calculation import calculate_savings, format_years_saved, find_best_bank_rate, extract_number
-from backend.models import Lead, BankRate
+from backend.utils.calculation import calculate_savings, extract_number
+from backend.models import Lead
 from datetime import datetime, timedelta
 
 chatbot_bp = Blueprint('chatbot', __name__)
@@ -38,121 +36,85 @@ def verify_webhook(req):
     return 'Hello World', 200
 
 def handle_incoming_message(req):
-    data = req.get_json()
-    
     try:
-        entry = data['entry'][0]
-        changes = entry['changes'][0]
-        value = changes['value']
+        data = req.get_json()
+        entry = data.get('entry', [{}])[0]
+        changes = entry.get('changes', [{}])[0]
+        value = changes.get('value', {})
         messages = value.get('messages', [])
-
+        
         if not messages:
+            logging.info(f"No messages found in the webhook payload: {data}")
             return jsonify({"status": "no messages"}), 200
-
+        
         message = messages[0]
-        from_number = message['from']
+        from_number = message.get('from')
         text = message.get('text', {}).get('body', '').strip().lower()
-    except (KeyError, IndexError) as e:
-        return jsonify({"error": "Invalid payload"}), 400
-
-    if text == 'restart':
-        reset_lead_state(from_number)
-        send_whatsapp_message(from_number, "🔄 Restarting your session. Let's start fresh.\n\nFirst, may I have your name?")
-        return jsonify({"status": "session restarted"}), 200
-    
-    lead = get_lead(from_number)
-    current_time = datetime.utcnow()
-    
-    if lead and lead.updated_at < current_time - timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-        reset_lead_state(from_number)
-        send_whatsapp_message(from_number, "⏳ Your session has expired due to inactivity. Let's start again from the beginning.")
-        return jsonify({"status": "session expired"}), 200
-    
-    if not lead or lead.conversation_state == 'end':
-        lead = Lead(phone_number=from_number)
-        db.session.add(lead)
-        db.session.commit()
         
-        welcome_msg = (
-            "💡 Welcome to FinZo!\n\n" 
-            "I'm FinZo, your AI Refinancing Assistant. I'll guide you through the refinancing process " 
-            "and provide a detailed, accurate report based on your loan details.\n\n"
-            "At any time, you may type 'restart' to start over.\n\n"
-            "First, may I have your name?"
-        )
-        send_whatsapp_message(from_number, welcome_msg)
-        update_lead_state(lead, 'get_name')
-        return jsonify({"status": "conversation started"}), 200
-
-    state = lead.conversation_state
-    lead.updated_at = current_time
-    db.session.commit()
-    
-    response = handle_user_response(state, text, lead)
-    send_whatsapp_message(from_number, response["message"])
-    return jsonify(response)
-
-def handle_user_response(state, user_response, lead):
-    user_response = user_response.strip()
-
-    if state == 'get_name':
-        if not user_response:
-            return {"status": "error", "message": "Please enter a valid name to continue."}
-        lead.name = user_response
-        update_lead_state(lead, 'get_age')
-        return {"status": "success", "message": "Thanks! How old are you?"}
-
-    elif state == 'get_age':
-        try:
-            age = int(user_response)
-            if age <= 0:
-                raise ValueError("Age must be greater than 0")
-        except ValueError:
-            return {"status": "error", "message": "Please provide a valid age as a whole number."}
+        logging.info(f"Incoming message from {from_number}: {text}")
         
-        lead.age = age
-        update_lead_state(lead, 'get_loan_amount')
-        return {"status": "success", "message": "Thanks! What's your loan amount?"}
+        # Restart logic
+        if text == 'restart':
+            try:
+                reset_lead_state(from_number)
+                send_whatsapp_message(from_number, "🔄 Restarting your session. Let's start fresh.\n\nFirst, may I have your name?")
+            except Exception as e:
+                logging.error(f"Failed to reset lead state for {from_number}: {e}")
+                send_whatsapp_message(from_number, "❌ Failed to restart. Please try again later.")
+            return jsonify({"status": "session restarted"}), 200
+        
+        lead = get_lead(from_number)
+        if lead and lead.updated_at < datetime.utcnow() - timedelta(minutes=SESSION_TIMEOUT_MINUTES):
+            reset_lead_state(from_number)
+            send_whatsapp_message(from_number, "⏳ Your session has expired due to inactivity. Let's start again from the beginning.")
+            return jsonify({"status": "session expired"}), 200
 
-    elif state == 'get_loan_amount':
-        loan_amount = extract_number(user_response)
-        if not loan_amount or loan_amount <= 0:
-            return {"status": "error", "message": "Please provide a valid loan amount. (e.g., 200k, 200,000, or RM200,000)"}
-        
-        lead.original_loan_amount = loan_amount
-        update_lead_state(lead, 'get_optional_interest_rate')
-        return {"status": "success", "message": "Do you know your interest rate? You can provide it or type 'skip'."}
+        if not lead or lead.conversation_state == 'end':
+            lead = Lead(phone_number=from_number)
+            db.session.add(lead)
+            db.session.commit()
+            
+            send_whatsapp_message(from_number, "💡 Welcome to FinZo!\n\nMay I have your name?")
+            update_lead_state(lead, 'get_name')
+            return jsonify({"status": "conversation started"}), 200
 
-    elif state == 'get_optional_interest_rate':
-        if user_response.lower() == 'skip':
-            update_lead_state(lead, 'get_optional_tenure')
-            return {"status": "success", "message": "No problem! Do you know your remaining tenure? You can enter it or type 'skip'."}
-        
-        try:
-            interest_rate = float(user_response)
-            if interest_rate <= 0:
-                raise ValueError("Interest rate must be positive")
-        except ValueError:
-            return {"status": "error", "message": "Please provide a valid interest rate or type 'skip' to continue."}
-        
-        lead.interest_rate = interest_rate
-        update_lead_state(lead, 'get_optional_tenure')
-        return {"status": "success", "message": "Got it! Do you know your remaining tenure? You can enter it or type 'skip'."}
+        # Process user response based on conversation state
+        return handle_user_response(lead.conversation_state, text, lead, from_number)
 
-    elif state == 'get_optional_tenure':
-        if user_response.lower() == 'skip':
-            update_lead_state(lead, 'final_step')
-            return {"status": "success", "message": "Great! We have all the information we need. We'll process your information now."}
-        
-        try:
-            remaining_tenure = int(user_response)
-            if remaining_tenure <= 0:
-                raise ValueError("Tenure must be a positive number.")
-        except ValueError:
-            return {"status": "error", "message": "Please provide a valid tenure in years or type 'skip' to continue."}
-        
-        lead.remaining_tenure = remaining_tenure
-        update_lead_state(lead, 'final_step')
-        return {"status": "success", "message": "Great! We have all the information we need. We'll process your information now."}
+    except Exception as e:
+        logging.error(f"Error handling incoming message: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
-    return {"status": "error", "message": "Invalid state. Please try again or type 'restart' to start over."}
+def handle_user_response(state, text, lead, from_number):
+    try:
+        if state == 'get_name':
+            lead.name = text
+            update_lead_state(lead, 'get_age')
+            send_whatsapp_message(from_number, "Thanks, {}! Please provide your age (18-70).".format(text))
+
+        elif state == 'get_age':
+            if text.isdigit() and 18 <= int(text) <= 70:
+                lead.age = int(text)
+                update_lead_state(lead, 'get_loan_amount')
+                send_whatsapp_message(from_number, "Great! Please provide your original loan amount.")
+            else:
+                send_whatsapp_message(from_number, "Please provide a valid age (18-70).")
+
+        elif state == 'get_loan_amount':
+            amount = extract_number(text)
+            if amount:
+                lead.original_loan_amount = amount
+                update_lead_state(lead, 'get_tenure')
+                send_whatsapp_message(from_number, "Next, provide the original loan tenure in years.")
+            else:
+                send_whatsapp_message(from_number, "Please provide a valid loan amount.")
+
+        elif state == 'get_tenure':
+            if text.isdigit():
+                lead.original_loan_tenure = int(text)
+                update_lead_state(lead, 'get_repayment')
+                send_whatsapp_message(from_number, "Please provide your current monthly repayment.")
+            else:
+                send_whatsapp_message(from_number, "Please provide the tenure in whole years.")
+    except Exception as e:
+        logging.error(f"Error processing user response: {e}")

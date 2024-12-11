@@ -1,40 +1,31 @@
-# backend/helpers.py
 import logging
-from backend.models import Lead  # ✅ Fixed import
-from backend.extensions import db  # ✅ Fixed import
+from backend.extensions import db
+from backend.models import Lead
 
-def get_lead(from_number):
-    """
-    Retrieve a lead by phone number.
-    """
+def get_lead(phone_number):
     try:
-        lead = Lead.query.filter_by(phone_number=from_number).first()
+        lead = Lead.query.filter_by(phone_number=phone_number).first()
         if not lead:
-            logging.warning(f"No lead found for phone_number: {from_number}")
+            logging.warning(f"No lead found for phone number {phone_number}")
         return lead
     except Exception as e:
-        logging.error(f"Error retrieving lead for phone_number {from_number}: {e}")
+        logging.error(f"Error getting lead for {phone_number}: {e}")
         return None
 
-def reset_lead_state(from_number):
-    """Reset the state of the lead to start from the beginning."""
-    lead = get_lead(from_number)
-    if isinstance(lead, dict):  # If it's a dictionary
-        lead['name'] = None
-    elif hasattr(lead, 'name'):  # If it's an object
-        lead.name = None
-    else:
-        logging.error(f"Lead is neither a dict nor an object: {lead}")
-        
 def update_lead_state(lead, new_state):
-    """Update the state of a lead to a new state."""
     try:
-        if isinstance(lead, dict):  # If it's a dictionary
-            lead['state'] = new_state
-        elif hasattr(lead, 'state'):  # If it's an object
-            lead.state = new_state
-        else:
-            logging.error(f"Lead is neither a dict nor an object: {lead}")
-        logging.info(f"Lead with phone_number {lead['phone_number']} updated to state '{new_state}'")
+        lead.conversation_state = new_state
+        db.session.commit()
+        logging.info(f"Lead {lead.phone_number} state updated to '{new_state}'")
     except Exception as e:
-        logging.error(f"Failed to update lead state for phone_number {lead['phone_number']}: {e}")
+        logging.error(f"Failed to update lead state for {lead.phone_number}: {e}")
+
+def reset_lead_state(phone_number):
+    try:
+        lead = get_lead(phone_number)
+        if lead:
+            lead.conversation_state = None
+            db.session.commit()
+            logging.info(f"Lead {phone_number} state reset")
+    except Exception as e:
+        logging.error(f"Failed to reset lead state for {phone_number}: {e}")
