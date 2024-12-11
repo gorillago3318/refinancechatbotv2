@@ -7,7 +7,7 @@ import json
 import logging
 import re
 import openai
-from backend.calculation import calculate_savings, format_years_saved
+from backend.utils.calculation import calculate_savings, format_years_saved
 from backend.models import Lead, BankRate
 
 chatbot_bp = Blueprint('chatbot', __name__)
