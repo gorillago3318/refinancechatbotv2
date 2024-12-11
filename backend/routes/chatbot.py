@@ -55,7 +55,6 @@ def handle_incoming_message(req):
     except (KeyError, IndexError) as e:
         return jsonify({"error": "Invalid payload"}), 400
 
-    # Check for "restart" command
     if text == 'restart':
         reset_lead_state(from_number)
         send_whatsapp_message(from_number, "🔄 Restarting your session. Let's start fresh.\n\nFirst, may I have your name?")
@@ -89,36 +88,71 @@ def handle_incoming_message(req):
     lead.updated_at = current_time
     db.session.commit()
     
+    response = handle_user_response(state, text, lead)
+    send_whatsapp_message(from_number, response["message"])
+    return jsonify(response)
+
+def handle_user_response(state, user_response, lead):
+    user_response = user_response.strip()
+
     if state == 'get_name':
-        lead.name = text
+        if not user_response:
+            return {"status": "error", "message": "Please enter a valid name to continue."}
+        lead.name = user_response
         update_lead_state(lead, 'get_age')
-        send_whatsapp_message(from_number, "Thank you, {}!\nPlease provide your age.\n\n💡 Guide: Your age must be between 18 and 70.".format(text))
-        return jsonify({"status": "name captured"}), 200
-    
+        return {"status": "success", "message": "Thanks! How old are you?"}
+
     elif state == 'get_age':
-        if text.isdigit() and 18 <= int(text) <= 70:
-            lead.age = int(text)
-            update_lead_state(lead, 'get_loan_amount')
-            send_whatsapp_message(from_number, "Please provide your original loan amount.\n\n💡 Guide: Enter in one of these formats: 200k, 200,000, or RM200,000.")
-        else:
-            send_whatsapp_message(from_number, "Invalid age. Please enter a valid age (between 18 and 70).")
-        return jsonify({"status": "age captured"}), 200
-    
+        try:
+            age = int(user_response)
+            if age <= 0:
+                raise ValueError("Age must be greater than 0")
+        except ValueError:
+            return {"status": "error", "message": "Please provide a valid age as a whole number."}
+        
+        lead.age = age
+        update_lead_state(lead, 'get_loan_amount')
+        return {"status": "success", "message": "Thanks! What's your loan amount?"}
+
     elif state == 'get_loan_amount':
-        amount = extract_number(text)
-        if amount:
-            lead.original_loan_amount = amount
-            update_lead_state(lead, 'get_tenure')
-            send_whatsapp_message(from_number, "Next, provide the original loan tenure in years approved for your loan.\n\n💡 Guide: Enter the tenure as a whole number (e.g., 30).")
-        else:
-            send_whatsapp_message(from_number, "Invalid amount. Please provide a valid loan amount (e.g., 200k, 200,000, or RM200,000).")
-        return jsonify({"status": "loan amount captured"}), 200
-    
-    elif state == 'get_tenure':
-        if text.isdigit():
-            lead.original_loan_tenure = int(text)
-            update_lead_state(lead, 'get_repayment')
-            send_whatsapp_message(from_number, "Please provide your current monthly repayment.\n\n💡 Guide: Enter in one of these formats: 1.2k, 1,200, or RM1,200.")
-        else:
-            send_whatsapp_message(from_number, "Invalid tenure. Please enter the tenure as a whole number (e.g., 30).")
-        return jsonify({"status": "tenure captured"}), 200
+        loan_amount = extract_number(user_response)
+        if not loan_amount or loan_amount <= 0:
+            return {"status": "error", "message": "Please provide a valid loan amount. (e.g., 200k, 200,000, or RM200,000)"}
+        
+        lead.original_loan_amount = loan_amount
+        update_lead_state(lead, 'get_optional_interest_rate')
+        return {"status": "success", "message": "Do you know your interest rate? You can provide it or type 'skip'."}
+
+    elif state == 'get_optional_interest_rate':
+        if user_response.lower() == 'skip':
+            update_lead_state(lead, 'get_optional_tenure')
+            return {"status": "success", "message": "No problem! Do you know your remaining tenure? You can enter it or type 'skip'."}
+        
+        try:
+            interest_rate = float(user_response)
+            if interest_rate <= 0:
+                raise ValueError("Interest rate must be positive")
+        except ValueError:
+            return {"status": "error", "message": "Please provide a valid interest rate or type 'skip' to continue."}
+        
+        lead.interest_rate = interest_rate
+        update_lead_state(lead, 'get_optional_tenure')
+        return {"status": "success", "message": "Got it! Do you know your remaining tenure? You can enter it or type 'skip'."}
+
+    elif state == 'get_optional_tenure':
+        if user_response.lower() == 'skip':
+            update_lead_state(lead, 'final_step')
+            return {"status": "success", "message": "Great! We have all the information we need. We'll process your information now."}
+        
+        try:
+            remaining_tenure = int(user_response)
+            if remaining_tenure <= 0:
+                raise ValueError("Tenure must be a positive number.")
+        except ValueError:
+            return {"status": "error", "message": "Please provide a valid tenure in years or type 'skip' to continue."}
+        
+        lead.remaining_tenure = remaining_tenure
+        update_lead_state(lead, 'final_step')
+        return {"status": "success", "message": "Great! We have all the information we need. We'll process your information now."}
+
+    return {"status": "error", "message": "Invalid state. Please try again or type 'restart' to start over."}

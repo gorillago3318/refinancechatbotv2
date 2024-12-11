@@ -19,7 +19,11 @@ ENV/
 # Database
 *.db
 
-# Migrations
-migrations/
-
+# Ignore all files in migrations/versions
+/migrations/*
+# But track version files (Python scripts)
+/migrations/versions/*.py
+# Still ignore pycache files
+__pycache__/
+*.pyc
 heroku-x64.exe

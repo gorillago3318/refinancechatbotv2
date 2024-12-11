@@ -1,6 +1,4 @@
-# backend/models.py
-
-from backend.extensions import db
+from backend.extensions import db  # Ensure this import points to the correct location
 from datetime import datetime
 
 class User(db.Model):
@@ -17,6 +15,7 @@ class User(db.Model):
     def __repr__(self):
         return f"<User {self.email}>"
 
+
 class Lead(db.Model):
     __tablename__ = 'leads'
 
@@ -28,8 +27,8 @@ class Lead(db.Model):
     original_loan_amount = db.Column(db.Float, nullable=True)
     original_loan_tenure = db.Column(db.Integer, nullable=True)
     current_repayment = db.Column(db.Float, nullable=True)
-    interest_rate = db.Column(db.Float, nullable=True)  # Ensure this line exists
-    remaining_tenure = db.Column(db.Float, nullable=True)  # Ensure this line exists
+    remaining_tenure = db.Column(db.Integer, nullable=True)
+    interest_rate = db.Column(db.Float, nullable=True)
     new_repayment = db.Column(db.Float, nullable=True)
     monthly_savings = db.Column(db.Float, nullable=True)
     yearly_savings = db.Column(db.Float, nullable=True)
@@ -43,6 +42,7 @@ class Lead(db.Model):
 
     def __repr__(self):
         return f"<Lead {self.id} - {self.name}>"
+
 
 class BankRate(db.Model):
     __tablename__ = 'bank_rates'

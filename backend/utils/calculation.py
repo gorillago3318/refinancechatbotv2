@@ -50,13 +50,18 @@ def format_years_saved(total_months):
     return f"{years} year(s) {months} month(s)"
 
 
-def extract_number(text):
-    """Extract numeric value from a string. Supports 200k, 200,000, RM200,000, etc."""
-    text = text.lower().replace(',', '')  # Remove commas
-    if 'k' in text:
-        return float(text.replace('k', '')) * 1000  # Handle "k" as thousand
-    match = re.search(r'\d+(\.\d+)?', text)
-    return float(match.group()) if match else None
+def extract_number(input_text):
+    """
+    Extract the numeric value from the user's input.
+    Supports formats like 200k, 200,000, and RM200,000.
+    """
+    input_text = re.sub(r'[^\d.]', '', input_text)  # Remove non-digits except for the decimal
+    try:
+        if 'k' in input_text.lower():
+            return float(input_text.replace('k', '')) * 1000
+        return float(input_text.replace(',', ''))
+    except ValueError:
+        return None
 
 def find_best_bank_rate(loan_amount):
     """
