@@ -1,5 +1,5 @@
 # backend/helpers.py
-
+import logging
 from backend.models import Lead  # ✅ Fixed import
 from backend.extensions import db  # ✅ Fixed import
 
