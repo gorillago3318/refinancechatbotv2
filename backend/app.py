@@ -55,3 +55,5 @@ def send_whatsapp_message(phone_number, message):
     }
     payload = {'messaging_product': 'whatsapp', 'to': phone_number, 'type': 'text', 'text': {'body': message}}
     requests.post(url, json=payload, headers=headers)
+
+# This is a dummy change to trigger Heroku deployment
