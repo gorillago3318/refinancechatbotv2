@@ -73,6 +73,8 @@ def process_message():
         return get_monthly_repayment(phone_number, message_body)
     elif current_step == 'get_interest_rate':
         return get_interest_rate(phone_number, message_body)
+    elif current_step == 'get_remaining_tenure':
+        return get_remaining_tenure(phone_number, message_body)
     else:
         return send_message(phone_number, "I'm not sure how to respond to that. You can ask me questions about refinancing, or type 'restart' to begin.")
 
@@ -112,7 +114,7 @@ def get_age(phone_number, age):
 
 
 def get_interest_rate(phone_number, interest_rate):
-    """Get the user's interest rate and complete the process"""
+    """Get the user's interest rate and proceed to optional remaining tenure"""
     if interest_rate.lower() == 'skip':
         interest_rate = None
     else:
@@ -126,27 +128,30 @@ def get_interest_rate(phone_number, interest_rate):
         lead.interest_rate = interest_rate
         db.session.commit()
     
-    send_data_to_calculation(phone_number)
+    user = User.query.filter_by(wa_id=phone_number).first()
+    if user:
+        user.current_step = 'get_remaining_tenure'
+        db.session.commit()
     
-    return send_message(phone_number, "Thank you! We have captured all your information.")
+    return send_message(phone_number, "If you know your remaining loan tenure, please enter it. Otherwise, type 'skip'.")
 
 
-def send_data_to_calculation(phone_number):
-    """Send data to the calculation module to process savings and update the lead"""
+def get_remaining_tenure(phone_number, remaining_tenure):
+    """Get remaining tenure from the user"""
+    if remaining_tenure.lower() == 'skip':
+        remaining_tenure = None
+    else:
+        try:
+            remaining_tenure = int(remaining_tenure)
+        except ValueError:
+            return send_message(phone_number, "Please provide the remaining tenure as a number (e.g., 15).")
+    
     lead = Lead.query.filter_by(phone_number=phone_number).first()
     if lead:
-        result = perform_calculation(
-            original_loan_amount=lead.original_loan_amount,
-            original_loan_tenure=lead.original_loan_tenure,
-            current_repayment=lead.current_repayment,
-            interest_rate=lead.interest_rate
-        )
-        lead.new_repayment = result.get('new_repayment')
-        lead.monthly_savings = result.get('monthly_savings')
-        lead.yearly_savings = result.get('yearly_savings')
-        lead.total_savings = result.get('total_savings')
-        lead.years_saved = result.get('years_saved')
+        lead.remaining_tenure = remaining_tenure
         db.session.commit()
+    
+    return send_message(phone_number, "Thank you! We have captured all your information.")
 
 
 def get_loan_amount(phone_number, loan_amount):
