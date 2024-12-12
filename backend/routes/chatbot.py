@@ -3,13 +3,13 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from ..extensions import db
 from ..models import User, Lead, ChatLog, BankRate
-from ..calculation import perform_calculation  # Import the calculation module
+from ..utils.calculation import perform_calculation  # Import the calculation module
 
 chatbot_bp = Blueprint('chatbot', __name__)
 
 # Helper function to send chatbot message response
 def send_message(phone_number, message):
-    """ Simulate sending a message (could be replaced with actual WhatsApp API) """
+    """Simulate sending a message (could be replaced with actual WhatsApp API)"""
     logging.info(f"📤 Sending message to {phone_number}: {message}")
     return jsonify({"phone_number": phone_number, "message": message})
 
@@ -49,69 +49,76 @@ def restart_chat():
 @chatbot_bp.route('/process_message', methods=['POST'])
 def process_message():
     """Process all incoming messages and route them based on current step"""
-    data = request.get_json()
-    phone_number = data.get('phone_number')
-    message_body = data.get('message', '').strip()
+    try:
+        data = request.get_json()
+        phone_number = data.get('phone_number')
+        message_body = data.get('message', '').strip()
+        
+        logging.info(f"📨 Incoming message from {phone_number}: {message_body}")
+        
+        if message_body.lower() == 'restart':
+            return restart_chat()
+        
+        user = User.query.filter_by(wa_id=phone_number).first()
+        if not user or not user.current_step:
+            logging.info("🔄 User not found or no current step, restarting the flow.")
+            return start_chat()
+        
+        current_step = user.current_step
+        step_info = STEP_CONFIG.get(current_step)
+        
+        if not step_info:
+            logging.warning(f"⚠️ No step configuration found for current step: {current_step}")
+            return send_message(phone_number, "I'm not sure how to respond to that. You can ask me questions about refinancing, or type 'restart' to begin.")
+        
+        if not step_info['validator'](message_body):
+            return send_message(phone_number, f"Invalid input. {step_info['message']}")
+        
+        # Save the user input to the relevant column
+        process_user_input(current_step, phone_number, message_body)
+        
+        # Move to the next step
+        user.current_step = step_info['next_step']
+        db.session.commit()
+        
+        # If all steps are complete, calculate and send final message
+        if user.current_step is None:
+            lead = Lead.query.filter_by(phone_number=phone_number).first()
+            if lead:
+                result = perform_calculation(lead)  # Call the perform_calculation function
+                return send_message(phone_number, result)
+        
+        next_message = STEP_CONFIG[user.current_step]['message'] if user.current_step else "Thank you for completing the process."
+        return send_message(phone_number, next_message)
     
-    if message_body.lower() == 'restart':
-        return restart_chat()
-    
+    except Exception as e:
+        logging.error(f"❌ Error occurred in process_message: {e}")
+        return send_message(data.get('phone_number'), "An unexpected error occurred. Please type 'restart' to try again.")
+
+def process_user_input(current_step, phone_number, message_body):
+    """Processes and stores user input in the database."""
     user = User.query.filter_by(wa_id=phone_number).first()
-    if not user or not user.current_step:
-        return start_chat()
+    lead = Lead.query.filter_by(phone_number=phone_number).first() or Lead(phone_number=phone_number)
     
-    current_step = user.current_step
-    step_info = STEP_CONFIG.get(current_step)
-    
-    if not step_info:
-        return send_message(phone_number, "I'm not sure how to respond to that. You can ask me questions about refinancing, or type 'restart' to begin.")
-    
-    if not step_info['validator'](message_body):
-        return send_message(phone_number, f"Invalid input. {step_info['message']}")
-    
-    # Save the user input to the relevant column
     if current_step == 'get_name':
         user.name = message_body
     elif current_step == 'get_age':
         user.age = int(message_body)
     elif current_step == 'get_loan_amount':
         amount = parse_loan_amount(message_body)
-        lead = Lead.query.filter_by(phone_number=phone_number).first() or Lead(phone_number=phone_number)
         lead.original_loan_amount = amount
-        db.session.add(lead)
     elif current_step == 'get_loan_tenure':
-        lead = Lead.query.filter_by(phone_number=phone_number).first()
-        if lead:
-            lead.original_loan_tenure = int(message_body)
+        lead.original_loan_tenure = int(message_body)
     elif current_step == 'get_monthly_repayment':
         repayment = parse_loan_amount(message_body)
-        lead = Lead.query.filter_by(phone_number=phone_number).first()
-        if lead:
-            lead.current_repayment = repayment
-    elif current_step == 'get_interest_rate':
-        if message_body.lower() != 'skip':
-            interest_rate = float(message_body)
-            lead = Lead.query.filter_by(phone_number=phone_number).first()
-            if lead:
-                lead.interest_rate = interest_rate
-    elif current_step == 'get_remaining_tenure':
-        if message_body.lower() != 'skip':
-            remaining_tenure = int(message_body)
-            lead = Lead.query.filter_by(phone_number=phone_number).first()
-            if lead:
-                lead.remaining_tenure = remaining_tenure
+        lead.current_repayment = repayment
+    elif current_step == 'get_interest_rate' and message_body.lower() != 'skip':
+        lead.interest_rate = float(message_body)
+    elif current_step == 'get_remaining_tenure' and message_body.lower() != 'skip':
+        lead.remaining_tenure = int(message_body)
     
-    user.current_step = step_info['next_step']
+    db.session.add(lead)
     db.session.commit()
-    
-    if user.current_step is None:
-        lead = Lead.query.filter_by(phone_number=phone_number).first()
-        if lead:
-            result = perform_calculation(lead)  # Call the perform_calculation function
-            return send_message(phone_number, result)
-    
-    next_message = STEP_CONFIG[user.current_step]['message'] if user.current_step else "Thank you for completing the process."
-    return send_message(phone_number, next_message)
 
 STEP_CONFIG = {
     'get_name': {
@@ -153,4 +160,13 @@ STEP_CONFIG = {
 
 def parse_loan_amount(amount_str):
     """Parses loan amounts from formats like 100k, 1.2m to numeric values"""
-    return float(amount_str.replace('k', '')) * 1000 if 'k' in amount_str else float(amount_str)
+    try:
+        if 'k' in amount_str:
+            return float(amount_str.replace('k', '')) * 1000
+        elif 'm' in amount_str:
+            return float(amount_str.replace('m', '')) * 1_000_000
+        else:
+            return float(amount_str)
+    except ValueError:
+        logging.error(f"❌ Error parsing loan amount: {amount_str}")
+        return 0
