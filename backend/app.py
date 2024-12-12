@@ -107,6 +107,10 @@ def send_whatsapp_message(phone_number, message):
     """
     import requests
 
+    # Debug: Print out all environment variables
+    print("WHATSAPP_PHONE_ID:", os.getenv('WHATSAPP_PHONE_ID'))
+    print("WHATSAPP_API_TOKEN length:", len(os.getenv('WHATSAPP_API_TOKEN', '')))
+
     whatsapp_url = f"https://graph.facebook.com/v17.0/{os.getenv('WHATSAPP_PHONE_ID')}/messages"
     headers = {
         'Content-Type': 'application/json',
@@ -120,13 +124,26 @@ def send_whatsapp_message(phone_number, message):
     }
 
     try:
+        # Debug: Print full request details
+        print("Request URL:", whatsapp_url)
+        print("Request Headers:", headers)
+        print("Request Payload:", payload)
+
         response = requests.post(whatsapp_url, json=payload, headers=headers)
+        
+        # Debug: Print full response
+        print("Response Status Code:", response.status_code)
+        print("Response Content:", response.text)
+
         if response.status_code == 200:
             logging.info(f"✅ Successfully sent message to {phone_number}")
         else:
             logging.error(f"❌ Failed to send message to {phone_number}. Response: {response.json()}")
     except Exception as e:
         logging.error(f"❌ Error sending message to {phone_number}: {e}")
+        # Add more detailed error printing
+        import traceback
+        traceback.print_exc()
 
 def is_name(text):
     """
