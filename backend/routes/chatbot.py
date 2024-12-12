@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from ..extensions import db
 from ..models import User, Lead, ChatLog, BankRate
+from ..calculation import perform_calculation  # Import the calculation module
 
 chatbot_bp = Blueprint('chatbot', __name__)
 
@@ -48,7 +49,7 @@ def process_message():
     """Process all incoming messages and route them based on current step"""
     data = request.get_json()
     phone_number = data.get('phone_number')
-    message_body = data.get('message', '').strip().lower()  # Ensure consistent lowercase and remove extra whitespace
+    message_body = data.get('message', '').strip().lower()
     
     if message_body == 'restart':
         return restart_chat()
@@ -63,21 +64,26 @@ def process_message():
     if current_step == 'get_name':
         return get_name(phone_number, message_body)
     elif current_step == 'get_age':
-        return get_age(phone_number, message_body)  # Make sure the message body is passed to get_age
+        return get_age(phone_number, message_body)
     elif current_step == 'get_loan_amount':
         return get_loan_amount(phone_number, message_body)
     elif current_step == 'get_loan_tenure':
         return get_loan_tenure(phone_number, message_body)
     elif current_step == 'get_monthly_repayment':
         return get_monthly_repayment(phone_number, message_body)
+    elif current_step == 'get_interest_rate':
+        return get_interest_rate(phone_number, message_body)
     else:
         return send_message(phone_number, "I'm not sure how to respond to that. You can ask me questions about refinancing, or type 'restart' to begin.")
 
 
 def get_name(phone_number, name):
     """Get user name and ask for their age"""
-    if not name or name.lower().strip() == 'restart':
+    if name.lower().strip() == 'restart':
         return restart_chat()
+    
+    if not name.isalpha() or len(name) < 2:
+        return send_message(phone_number, "That doesn't look like a valid name. Please provide your name.")
     
     user = User.query.filter_by(wa_id=phone_number).first()
     if not user:
@@ -91,9 +97,8 @@ def get_name(phone_number, name):
     return send_message(phone_number, f"Thanks, {name}! How old are you? (18-70)")
 
 
-def get_age(phone_number, message_body):
+def get_age(phone_number, age):
     """Get user age and ask for current loan amount"""
-    age = message_body.strip()  # Clean up any extra whitespace
     if not age.isdigit() or not (18 <= int(age) <= 70):
         return send_message(phone_number, "Please provide a valid age between 18 and 70.")
     
@@ -104,6 +109,44 @@ def get_age(phone_number, message_body):
         db.session.commit()
     
     return send_message(phone_number, "Great! What's your original loan amount? (e.g., 100k, 1.2m)")
+
+
+def get_interest_rate(phone_number, interest_rate):
+    """Get the user's interest rate and complete the process"""
+    if interest_rate.lower() == 'skip':
+        interest_rate = None
+    else:
+        try:
+            interest_rate = float(interest_rate.strip('%'))
+        except ValueError:
+            return send_message(phone_number, "Please provide the interest rate in a valid format (e.g., 3.5 or 3.5%).")
+    
+    lead = Lead.query.filter_by(phone_number=phone_number).first()
+    if lead:
+        lead.interest_rate = interest_rate
+        db.session.commit()
+    
+    send_data_to_calculation(phone_number)
+    
+    return send_message(phone_number, "Thank you! We have captured all your information.")
+
+
+def send_data_to_calculation(phone_number):
+    """Send data to the calculation module to process savings and update the lead"""
+    lead = Lead.query.filter_by(phone_number=phone_number).first()
+    if lead:
+        result = perform_calculation(
+            original_loan_amount=lead.original_loan_amount,
+            original_loan_tenure=lead.original_loan_tenure,
+            current_repayment=lead.current_repayment,
+            interest_rate=lead.interest_rate
+        )
+        lead.new_repayment = result.get('new_repayment')
+        lead.monthly_savings = result.get('monthly_savings')
+        lead.yearly_savings = result.get('yearly_savings')
+        lead.total_savings = result.get('total_savings')
+        lead.years_saved = result.get('years_saved')
+        db.session.commit()
 
 
 def get_loan_amount(phone_number, loan_amount):
@@ -131,32 +174,3 @@ def get_loan_amount(phone_number, loan_amount):
     
     db.session.commit()
     return send_message(phone_number, "Thanks! What was the original loan tenure in years? (1-40)")
-
-
-def get_loan_tenure(phone_number, tenure):
-    """Get original loan tenure and ask for current monthly repayment"""
-    if not tenure.isdigit() or not (1 <= int(tenure) <= 40):
-        return send_message(phone_number, "Please provide a valid loan tenure (1-40 years).")
-    
-    lead = Lead.query.filter_by(phone_number=phone_number).first()
-    if lead:
-        lead.original_loan_tenure = int(tenure)
-    
-    user = User.query.filter_by(wa_id=phone_number).first()
-    if user:
-        user.current_step = 'get_monthly_repayment'
-    
-    db.session.commit()
-    return send_message(phone_number, "How much is your current monthly repayment? (e.g., 1.2k)")
-
-
-def get_monthly_repayment(phone_number, repayment):
-    try:
-        if 'k' in repayment:
-            repayment = float(repayment.replace('k', '')) * 1000
-        else:
-            repayment = float(repayment)
-    except ValueError:
-        return send_message(phone_number, "Please provide the monthly repayment amount in a valid format (e.g., 1.2k).")
-    
-    return send_message(phone_number, "If you know your existing housing loan's interest rate, please enter it. Otherwise, type 'skip'.")
