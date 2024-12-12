@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from ..extensions import db
 from ..models import User, Lead, ChatLog, BankRate
-from ..utils.calculation import perform_calculation  # Import the calculation module
+from ..utils.calculation import calculate_refinance_savings  # Import the calculation module
 
 chatbot_bp = Blueprint('chatbot', __name__)
 
@@ -85,7 +85,7 @@ def process_message():
         if user.current_step is None:
             lead = Lead.query.filter_by(phone_number=phone_number).first()
             if lead:
-                result = perform_calculation(lead)  # Call the perform_calculation function
+                result = calculate_refinance_savings(lead)  # Call the calculate_refinance_savings function
                 return send_message(phone_number, result)
         
         next_message = STEP_CONFIG[user.current_step]['message'] if user.current_step else "Thank you for completing the process."
