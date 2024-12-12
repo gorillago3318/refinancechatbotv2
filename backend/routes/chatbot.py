@@ -60,11 +60,6 @@ def process_message():
     
     current_step = user.current_step
     
-    # Add debug print statements
-    print(f"Phone Number: {phone_number}")
-    print(f"Current Step: {current_step}")
-    print(f"Message Body: {message_body}")
-    
     if current_step == 'get_name':
         return get_name(phone_number, message_body)
     elif current_step == 'get_age':
@@ -77,6 +72,7 @@ def process_message():
         return get_monthly_repayment(phone_number, message_body)
     else:
         return send_message(phone_number, "I'm not sure how to respond to that. You can ask me questions about refinancing, or type 'restart' to begin.")
+
 
 def get_name(phone_number, name):
     """Get user name and ask for their age"""
@@ -111,13 +107,14 @@ def get_age(phone_number, age):
 
 def get_loan_amount(phone_number, loan_amount):
     """Get original loan amount and ask for loan tenure"""
-    if 'k' in loan_amount:
-        loan_amount = float(loan_amount.replace('k', '')) * 1000
-    elif 'm' in loan_amount:
-        loan_amount = float(loan_amount.replace('m', '')) * 1_000_000
-    elif loan_amount.replace('.', '').isdigit():
-        loan_amount = float(loan_amount)
-    else:
+    try:
+        if 'k' in loan_amount:
+            loan_amount = float(loan_amount.replace('k', '')) * 1000
+        elif 'm' in loan_amount:
+            loan_amount = float(loan_amount.replace('m', '')) * 1_000_000
+        else:
+            loan_amount = float(loan_amount)
+    except ValueError:
         return send_message(phone_number, "Please provide the loan amount in a valid format (e.g., 100k, 1.2m).")
     
     lead = Lead.query.filter_by(phone_number=phone_number).first()
@@ -153,11 +150,12 @@ def get_loan_tenure(phone_number, tenure):
 
 
 def get_monthly_repayment(phone_number, repayment):
-    if 'k' in repayment:
-        repayment = float(repayment.replace('k', '')) * 1000
-    elif repayment.replace('.', '').isdigit():
-        repayment = float(repayment)
-    else:
+    try:
+        if 'k' in repayment:
+            repayment = float(repayment.replace('k', '')) * 1000
+        else:
+            repayment = float(repayment)
+    except ValueError:
         return send_message(phone_number, "Please provide the monthly repayment amount in a valid format (e.g., 1.2k).")
     
     lead = Lead.query.filter_by(phone_number=phone_number).first()
