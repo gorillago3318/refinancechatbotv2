@@ -14,6 +14,16 @@ def send_message(phone_number, message):
 def start_chat():
     """Welcome message for the user and ask for their name"""
     phone_number = request.json.get('phone_number')
+    user = User.query.filter_by(wa_id=phone_number).first()
+
+    if not user:
+        user = User(wa_id=phone_number, current_step='get_name')
+        db.session.add(user)
+    else:
+        user.current_step = 'get_name'
+        
+    db.session.commit()
+    
     message = (
         "Hi! Welcome to FinZo, your personal refinancing assistant. 😊\n"
         "Here's how I can help you:\n"
@@ -39,6 +49,7 @@ def get_name():
     data = request.get_json()
     phone_number = data.get('phone_number')
     name = data.get('name')
+
     if not name:
         return send_message(phone_number, "Please provide your name to continue.")
     
@@ -47,14 +58,13 @@ def get_name():
     
     user = User.query.filter_by(wa_id=phone_number).first()
     if not user:
-        user = User(wa_id=phone_number, name=name)
+        user = User(wa_id=phone_number, name=name, current_step='get_age')
         db.session.add(user)
     else:
         user.name = name
+        user.current_step = 'get_age'
     
-    user.current_step = 'get_age'
     db.session.commit()
-    
     return send_message(phone_number, f"Thanks, {name}! How old are you? (18-70)")
 
 @chatbot_bp.route('/get_age', methods=['POST'])
@@ -63,6 +73,7 @@ def get_age():
     data = request.get_json()
     phone_number = data.get('phone_number')
     age = data.get('age')
+
     if not age or not (18 <= int(age) <= 70):
         return send_message(phone_number, "Please provide a valid age between 18 and 70.")
     
@@ -72,6 +83,7 @@ def get_age():
     user = User.query.filter_by(wa_id=phone_number).first()
     if user:
         user.age = age
+        user.current_step = 'get_loan_amount'
         db.session.commit()
     
     return send_message(phone_number, "Great! What's your original loan amount? (e.g., 100k, 1.2m)")
@@ -82,7 +94,7 @@ def get_loan_amount():
     data = request.get_json()
     phone_number = data.get('phone_number')
     loan_amount = data.get('loan_amount')
-    
+
     if not loan_amount:
         return send_message(phone_number, "Please provide the loan amount in a valid format (e.g., 100k, 1.2m).")
     
@@ -103,6 +115,10 @@ def get_loan_amount():
     else:
         lead.original_loan_amount = loan_amount
     
+    user = User.query.filter_by(wa_id=phone_number).first()
+    if user:
+        user.current_step = 'get_loan_tenure'
+    
     db.session.commit()
     return send_message(phone_number, "Thanks! What was the original loan tenure in years? (1-40)")
 
@@ -112,7 +128,7 @@ def get_loan_tenure():
     data = request.get_json()
     phone_number = data.get('phone_number')
     tenure = data.get('tenure')
-    
+
     if not tenure or not (1 <= int(tenure) <= 40):
         return send_message(phone_number, "Please provide a valid loan tenure (1-40 years).")
     
@@ -124,6 +140,10 @@ def get_loan_tenure():
         lead.original_loan_tenure = tenure
         db.session.commit()
     
+    user = User.query.filter_by(wa_id=phone_number).first()
+    if user:
+        user.current_step = 'get_monthly_repayment'
+    
     return send_message(phone_number, "How much is your current monthly repayment? (e.g., 1.2k)")
 
 @chatbot_bp.route('/get_monthly_repayment', methods=['POST'])
@@ -132,7 +152,7 @@ def get_monthly_repayment():
     data = request.get_json()
     phone_number = data.get('phone_number')
     repayment = data.get('repayment')
-    
+
     if not repayment:
         return send_message(phone_number, "Please provide the monthly repayment amount in a valid format (e.g., 1.2k).")
     
