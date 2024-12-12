@@ -48,9 +48,9 @@ def process_message():
     """Process all incoming messages and route them based on current step"""
     data = request.get_json()
     phone_number = data.get('phone_number')
-    message_body = data.get('message', '').strip().lower()
+    message_body = data.get('message', '').strip()
     
-    if message_body == 'restart':
+    if message_body.lower() == 'restart':
         return restart_chat()
     
     user = User.query.filter_by(wa_id=phone_number).first()
@@ -59,6 +59,11 @@ def process_message():
         return start_chat()
     
     current_step = user.current_step
+    
+    # Add debug print statements
+    print(f"Phone Number: {phone_number}")
+    print(f"Current Step: {current_step}")
+    print(f"Message Body: {message_body}")
     
     if current_step == 'get_name':
         return get_name(phone_number, message_body)
@@ -73,11 +78,10 @@ def process_message():
     else:
         return send_message(phone_number, "I'm not sure how to respond to that. You can ask me questions about refinancing, or type 'restart' to begin.")
 
-
 def get_name(phone_number, name):
     """Get user name and ask for their age"""
-    if not name:
-        return send_message(phone_number, "Please provide your name to continue.")
+    if not name or name.lower() == 'restart':
+        return restart_chat()
     
     user = User.query.filter_by(wa_id=phone_number).first()
     if not user:
@@ -111,7 +115,7 @@ def get_loan_amount(phone_number, loan_amount):
         loan_amount = float(loan_amount.replace('k', '')) * 1000
     elif 'm' in loan_amount:
         loan_amount = float(loan_amount.replace('m', '')) * 1_000_000
-    elif loan_amount.isdigit():
+    elif loan_amount.replace('.', '').isdigit():
         loan_amount = float(loan_amount)
     else:
         return send_message(phone_number, "Please provide the loan amount in a valid format (e.g., 100k, 1.2m).")
@@ -151,7 +155,7 @@ def get_loan_tenure(phone_number, tenure):
 def get_monthly_repayment(phone_number, repayment):
     if 'k' in repayment:
         repayment = float(repayment.replace('k', '')) * 1000
-    elif repayment.isdigit():
+    elif repayment.replace('.', '').isdigit():
         repayment = float(repayment)
     else:
         return send_message(phone_number, "Please provide the monthly repayment amount in a valid format (e.g., 1.2k).")
