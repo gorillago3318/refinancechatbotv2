@@ -1,3 +1,4 @@
+import logging
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from ..extensions import db
@@ -9,6 +10,7 @@ chatbot_bp = Blueprint('chatbot', __name__)
 # Helper function to send chatbot message response
 def send_message(phone_number, message):
     """ Simulate sending a message (could be replaced with actual WhatsApp API) """
+    logging.info(f"📤 Sending message to {phone_number}: {message}")
     return jsonify({"phone_number": phone_number, "message": message})
 
 @chatbot_bp.route('/start', methods=['POST'])
@@ -151,9 +153,4 @@ STEP_CONFIG = {
 
 def parse_loan_amount(amount_str):
     """Parses loan amounts from formats like 100k, 1.2m to numeric values"""
-    if 'k' in amount_str:
-        return float(amount_str.replace('k', '')) * 1000
-    elif 'm' in amount_str:
-        return float(amount_str.replace('m', '')) * 1_000_000
-    else:
-        return float(amount_str)
+    return float(amount_str.replace('k', '')) * 1000 if 'k' in amount_str else float(amount_str)
