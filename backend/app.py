@@ -1,7 +1,7 @@
 import os
 import logging
 from flask import Flask, request
-from .chatbot import chatbot_bp  # Import the chatbot Blueprint
+from backend.routes.chatbot import chatbot_bp  # Updated import path for chatbot Blueprint
 
 # Configure logging to ensure all logs are captured
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
