@@ -10,10 +10,6 @@ def send_message(phone_number, message):
     """ Simulate sending a message (could be replaced with actual WhatsApp API) """
     return jsonify({"phone_number": phone_number, "message": message})
 
-def check_for_restart(input_text):
-    """Check if input is 'restart' (case insensitive, with whitespace stripped)"""
-    return str(input_text).strip().lower() == 'restart'
-
 @chatbot_bp.route('/start', methods=['POST'])
 def start_chat():
     """Welcome message for the user and ask for their name"""
@@ -47,18 +43,41 @@ def restart_chat():
     db.session.commit()
     return start_chat()
 
-@chatbot_bp.route('/get_name', methods=['POST'])
-def get_name():
-    """Get user name and ask for their age"""
+@chatbot_bp.route('/process_message', methods=['POST'])
+def process_message():
+    """Process all incoming messages and route them based on current step"""
     data = request.get_json()
     phone_number = data.get('phone_number')
-    name = data.get('name')
+    message_body = data.get('message', '').strip().lower()
+    
+    if message_body == 'restart':
+        return restart_chat()
+    
+    user = User.query.filter_by(wa_id=phone_number).first()
+    
+    if not user or not user.current_step:
+        return start_chat()
+    
+    current_step = user.current_step
+    
+    if current_step == 'get_name':
+        return get_name(phone_number, message_body)
+    elif current_step == 'get_age':
+        return get_age(phone_number, message_body)
+    elif current_step == 'get_loan_amount':
+        return get_loan_amount(phone_number, message_body)
+    elif current_step == 'get_loan_tenure':
+        return get_loan_tenure(phone_number, message_body)
+    elif current_step == 'get_monthly_repayment':
+        return get_monthly_repayment(phone_number, message_body)
+    else:
+        return send_message(phone_number, "I'm not sure how to respond to that. You can ask me questions about refinancing, or type 'restart' to begin.")
 
+
+def get_name(phone_number, name):
+    """Get user name and ask for their age"""
     if not name:
         return send_message(phone_number, "Please provide your name to continue.")
-    
-    if check_for_restart(name):
-        return restart_chat()
     
     user = User.query.filter_by(wa_id=phone_number).first()
     if not user:
@@ -69,49 +88,33 @@ def get_name():
         user.current_step = 'get_age'
     
     db.session.commit()
-    return send_message(phone_number, f"Thanks, {name.strip().title()}! How old are you? (18-70)")
+    return send_message(phone_number, f"Thanks, {name}! How old are you? (18-70)")
 
-@chatbot_bp.route('/get_age', methods=['POST'])
-def get_age():
+
+def get_age(phone_number, age):
     """Get user age and ask for current loan amount"""
-    data = request.get_json()
-    phone_number = data.get('phone_number')
-    age = data.get('age')
-
-    if check_for_restart(age):
-        return restart_chat()
-    
-    if not age or not str(age).isdigit() or not (18 <= int(age) <= 70):
+    if not age.isdigit() or not (18 <= int(age) <= 70):
         return send_message(phone_number, "Please provide a valid age between 18 and 70.")
     
-    age = int(age)
     user = User.query.filter_by(wa_id=phone_number).first()
     if user:
-        user.age = age
+        user.age = int(age)
         user.current_step = 'get_loan_amount'
         db.session.commit()
     
     return send_message(phone_number, "Great! What's your original loan amount? (e.g., 100k, 1.2m)")
 
-@chatbot_bp.route('/get_loan_amount', methods=['POST'])
-def get_loan_amount():
-    """Get original loan amount and ask for loan tenure"""
-    data = request.get_json()
-    phone_number = data.get('phone_number')
-    loan_amount = data.get('loan_amount')
 
-    if check_for_restart(loan_amount):
-        return restart_chat()
-    
-    if not loan_amount:
-        return send_message(phone_number, "Please provide the loan amount in a valid format (e.g., 100k, 1.2m).")
-    
+def get_loan_amount(phone_number, loan_amount):
+    """Get original loan amount and ask for loan tenure"""
     if 'k' in loan_amount:
         loan_amount = float(loan_amount.replace('k', '')) * 1000
     elif 'm' in loan_amount:
         loan_amount = float(loan_amount.replace('m', '')) * 1_000_000
-    else:
+    elif loan_amount.isdigit():
         loan_amount = float(loan_amount)
+    else:
+        return send_message(phone_number, "Please provide the loan amount in a valid format (e.g., 100k, 1.2m).")
     
     lead = Lead.query.filter_by(phone_number=phone_number).first()
     if not lead:
@@ -127,47 +130,31 @@ def get_loan_amount():
     db.session.commit()
     return send_message(phone_number, "Thanks! What was the original loan tenure in years? (1-40)")
 
-@chatbot_bp.route('/get_loan_tenure', methods=['POST'])
-def get_loan_tenure():
-    """Get original loan tenure and ask for current monthly repayment"""
-    data = request.get_json()
-    phone_number = data.get('phone_number')
-    tenure = data.get('tenure')
 
-    if check_for_restart(tenure):
-        return restart_chat()
-    
-    if not tenure or not str(tenure).isdigit() or not (1 <= int(tenure) <= 40):
+def get_loan_tenure(phone_number, tenure):
+    """Get original loan tenure and ask for current monthly repayment"""
+    if not tenure.isdigit() or not (1 <= int(tenure) <= 40):
         return send_message(phone_number, "Please provide a valid loan tenure (1-40 years).")
     
     lead = Lead.query.filter_by(phone_number=phone_number).first()
     if lead:
         lead.original_loan_tenure = int(tenure)
-        db.session.commit()
     
     user = User.query.filter_by(wa_id=phone_number).first()
     if user:
         user.current_step = 'get_monthly_repayment'
     
+    db.session.commit()
     return send_message(phone_number, "How much is your current monthly repayment? (e.g., 1.2k)")
 
-@chatbot_bp.route('/get_monthly_repayment', methods=['POST'])
-def get_monthly_repayment():
-    """Get monthly repayment and calculate savings"""
-    data = request.get_json()
-    phone_number = data.get('phone_number')
-    repayment = data.get('repayment')
 
-    if check_for_restart(repayment):
-        return restart_chat()
-    
-    if not repayment:
-        return send_message(phone_number, "Please provide the monthly repayment amount in a valid format (e.g., 1.2k).")
-    
+def get_monthly_repayment(phone_number, repayment):
     if 'k' in repayment:
         repayment = float(repayment.replace('k', '')) * 1000
-    else:
+    elif repayment.isdigit():
         repayment = float(repayment)
+    else:
+        return send_message(phone_number, "Please provide the monthly repayment amount in a valid format (e.g., 1.2k).")
     
     lead = Lead.query.filter_by(phone_number=phone_number).first()
     if lead:
