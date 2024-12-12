@@ -48,9 +48,9 @@ def process_message():
     """Process all incoming messages and route them based on current step"""
     data = request.get_json()
     phone_number = data.get('phone_number')
-    message_body = data.get('message', '').strip()
+    message_body = data.get('message', '').strip().lower()  # Ensure consistent lowercase and remove extra whitespace
     
-    if message_body.lower() == 'restart':
+    if message_body == 'restart':
         return restart_chat()
     
     user = User.query.filter_by(wa_id=phone_number).first()
@@ -63,7 +63,7 @@ def process_message():
     if current_step == 'get_name':
         return get_name(phone_number, message_body)
     elif current_step == 'get_age':
-        return get_age(phone_number, message_body)
+        return get_age(phone_number, message_body)  # Make sure the message body is passed to get_age
     elif current_step == 'get_loan_amount':
         return get_loan_amount(phone_number, message_body)
     elif current_step == 'get_loan_tenure':
@@ -76,7 +76,7 @@ def process_message():
 
 def get_name(phone_number, name):
     """Get user name and ask for their age"""
-    if not name or name.lower() == 'restart':
+    if not name or name.lower().strip() == 'restart':
         return restart_chat()
     
     user = User.query.filter_by(wa_id=phone_number).first()
@@ -91,8 +91,9 @@ def get_name(phone_number, name):
     return send_message(phone_number, f"Thanks, {name}! How old are you? (18-70)")
 
 
-def get_age(phone_number, age):
+def get_age(phone_number, message_body):
     """Get user age and ask for current loan amount"""
+    age = message_body.strip()  # Clean up any extra whitespace
     if not age.isdigit() or not (18 <= int(age) <= 70):
         return send_message(phone_number, "Please provide a valid age between 18 and 70.")
     
@@ -157,10 +158,5 @@ def get_monthly_repayment(phone_number, repayment):
             repayment = float(repayment)
     except ValueError:
         return send_message(phone_number, "Please provide the monthly repayment amount in a valid format (e.g., 1.2k).")
-    
-    lead = Lead.query.filter_by(phone_number=phone_number).first()
-    if lead:
-        lead.current_repayment = repayment
-        db.session.commit()
     
     return send_message(phone_number, "If you know your existing housing loan's interest rate, please enter it. Otherwise, type 'skip'.")
