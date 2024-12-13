@@ -1,10 +1,8 @@
 import os
 import logging
-from flask_sqlalchemy import SQLAlchemy
 from flask import Flask, request, current_app
+from .extensions import db, migrate  # Import the extensions from extensions.py
 from backend.routes.chatbot import chatbot_bp  # Import the chatbot Blueprint
-from backend.extensions import db  # Import db from extensions
-
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -12,12 +10,20 @@ logging.basicConfig(level=logging.INFO)
 def create_app():
     """Create and configure the Flask app."""
     app = Flask(__name__)
-    register_routes(app)
+
+    # Configure the database URI for local development and production
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')  # Ensure DATABASE_URL is set in Heroku
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # This removes warnings from SQLAlchemy
+
+    # Initialize database and migration
+    db.init_app(app)  # Bind SQLAlchemy to app
+    migrate.init_app(app, db)  # Bind Migrate to app and db
+
+    register_routes(app)  # Register all the routes
     return app
 
 def register_routes(app):
     """Register all routes for the application."""
-    
     # Attach the chatbot blueprint for handling the main flow
     app.register_blueprint(chatbot_bp, url_prefix='/chatbot')
     
