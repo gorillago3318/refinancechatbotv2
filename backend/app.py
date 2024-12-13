@@ -11,17 +11,18 @@ def create_app():
     """Create and configure the Flask app."""
     app = Flask(__name__)
 
-    # Configure the database URI for local development and production
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')  # Ensure DATABASE_URL is set in Heroku
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # This removes warnings from SQLAlchemy
+    # Setup database config
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://username:password@localhost:5432/dbname'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    # Initialize database and migration
-    db.init_app(app)  # Bind SQLAlchemy to app
-    migrate.init_app(app, db)  # Bind Migrate to app and db
+    # Initialize database and migrate
+    db.init_app(app)  
+    migrate.init_app(app, db)  
 
-    register_routes(app)  # Register all the routes
+    # Register all blueprints
+    register_routes(app)
+
     return app
-
 def register_routes(app):
     """Register all routes for the application."""
     # Attach the chatbot blueprint for handling the main flow
