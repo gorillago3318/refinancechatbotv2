@@ -1,5 +1,5 @@
 from datetime import datetime
-from .extensions import db
+from backend.extensions import db  # Import db from extensions instead of creating a new instance
 
 class User(db.Model):
     """Table to store system users."""

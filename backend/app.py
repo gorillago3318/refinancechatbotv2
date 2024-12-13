@@ -1,13 +1,16 @@
 import os
 import logging
-from flask import Flask, request
-from backend.routes.chatbot import chatbot_bp  # Updated import path for chatbot Blueprint
+from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, request, current_app
+from backend.routes.chatbot import chatbot_bp  # Import the chatbot Blueprint
+from backend.extensions import db  # Import db from extensions
 
-# Configure logging to ensure all logs are captured
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 def create_app():
-    """Create the Flask application."""
+    """Create and configure the Flask app."""
     app = Flask(__name__)
     register_routes(app)
     return app
@@ -15,7 +18,7 @@ def create_app():
 def register_routes(app):
     """Register all routes for the application."""
     
-    # Attach the chatbot blueprint for handling the main chatbot flow
+    # Attach the chatbot blueprint for handling the main flow
     app.register_blueprint(chatbot_bp, url_prefix='/chatbot')
     
     @app.route('/webhook', methods=['GET', 'POST'])
@@ -23,41 +26,30 @@ def register_routes(app):
         """Handles the webhook requests from WhatsApp."""
         if request.method == 'POST':
             try:
-                data = request.json
+                data = request.get_json()  # Ensure get_json() is used properly
                 logging.info(f"📩 Full request payload: {data}")  # Log full request payload for debugging
 
-                # Extract message data properly
-                entry = data.get('entry', [])
-                if not entry:
-                    logging.warning(f"⚠️ No entry found in request payload.")
-                    return 'OK', 200
-
-                change = entry[0].get('changes', [])
-                if not change:
-                    logging.warning(f"⚠️ No changes found in request payload.")
-                    return 'OK', 200
-
-                value = change[0].get('value', {})
+                # Extract message data
+                entry = data.get('entry', [{}])[0]
+                changes = entry.get('changes', [{}])[0]
+                value = changes.get('value', {})
                 messages = value.get('messages', [])
-
+                
                 if messages:
-                    message = messages[0]  # Get the first message in the array
+                    message = messages[0]
                     phone_number = message.get('from')
-                    user_message = message.get('text', {}).get('body', '').strip()  # Extract the actual message body
+                    user_message = message.get('text', {}).get('body', '').strip()
 
-                    if phone_number and user_message:
-                        logging.info(f"💎 Incoming message from {phone_number}: {user_message}")
-                        
-                        # Redirect request to chatbot flow via the chatbot blueprint route
-                        from flask import current_app  # Avoid circular imports
-                        with current_app.test_request_context('/chatbot/process_message', json={"phone_number": phone_number, "message": user_message}):
-                            response = current_app.view_functions['chatbot.process_message']()
-                            return response
-                    else:
-                        logging.warning(f"⚠️ Message data is incomplete. Phone: {phone_number}, Message: {user_message}")
+                    logging.info(f"💎 Incoming message from {phone_number}: {user_message}")
+                    
+                    # Use the process_message route instead of hardcoding 'start_chat'
+                    with current_app.test_request_context('/chatbot/process_message', json={"phone_number": phone_number, "message": user_message}):
+                        response = chatbot_bp.view_functions['process_message']()
+                        return response
+                
                 else:
-                    logging.info(f"⚠️ No 'messages' key in the request. This could be a status update (e.g., delivered, read).")
-
+                    logging.warning(f"⚠️ No messages found in request data. This could be a status update or a delivery report.")
             except Exception as e:
-                logging.error(f"❌ Error while processing the webhook: {e}", exc_info=True)
+                logging.error(f"❌ Error occurred while processing webhook: {e}")
+        
         return 'OK', 200
