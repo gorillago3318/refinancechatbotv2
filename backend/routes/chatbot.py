@@ -1,3 +1,19 @@
+"""
+TODO (Next Enhancements):
+
+1. Make chatbot responses more human and friendly.
+2. Shorten and simplify the questions/prompts.
+3. Ensure proper line breaks in the summary message.
+4. Split the summary into multiple WhatsApp messages with a 2-second gap between sends.
+5. Reintroduce the "Great job, you're all set!" message before the summary, then wait 5 seconds before sending the summary.
+6. Integrate ChatGPT 3.5 Turbo:
+   - Allow up to 5 user questions before prompting the user to contact an admin.
+7. Organize and utilize a preset JSON file to guide GPT 3.5 Turbo responses.
+8. Check and implement PostgreSQL database linkage to store leads and states.
+9. Add language selection and support for multiple languages.
+10. Send a WhatsApp notification to the admin number whenever a new lead completes their initial data collection.
+"""
+
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from backend.utils.calculation import calculate_refinance_savings  
@@ -10,65 +26,83 @@ USER_STATE = {}
 
 STEP_CONFIG = {
     'welcome_message': {
-        'message': "*Welcome to FinZo AI – Refinancing Bot!*\n\n"
-                   "We're here to help you estimate your potential savings if you refinance your existing home loan. "
-                   "You'll receive a clear comparison of your current loan vs. a potential refinance.\n\n"
-                   "*Let's get started!*",
+        'message': "🎉 *Welcome to FinZo AI – Your Personal Savings Hero!* 🎉\n\n"
+                   "Looking to save money on your home loan? You're in the right place! Our smart bot makes refinancing simple, clear, and stress-free. We'll show you how much you could save with a better deal. 💸\n\n"
+                   "*Stuck at any point?* No worries! Just type **\"restart\"** and we'll start fresh.\n\n"
+                   "Ready to see how much you can save? 🚀",
         'next_step': 'get_name',
         'validator': lambda x: True
     },
     'get_name': {
-        'message': "To begin, please share your *full name*.",
+        'message': "📝 *First things first!*\n\n"
+                   "To kick things off, we'll need your *full name* — so we know who to address when sharing your savings story!",
         'next_step': 'get_age',
         'validator': lambda x: len(x.strip()) > 0
     },
     'get_age': {
-        'message': "Please provide your *age* (Must be between *18 and 70* years old).",
+        'message': "🎉 *Awesome! You're doing great!*\n\n"
+                   "Next up, we'll need your *age* (between **18 and 70**). This helps us tailor the best refinancing options for you!\n\n"
+                   "Go ahead, type it in — we're one step closer to unlocking your savings! 🚀",
         'next_step': 'get_loan_amount',
         'validator': lambda x: x.isdigit() and 18 <= int(x) <= 70
     },
     'get_loan_amount': {
-        'message': "What is your *original loan amount*?\n\n"
-                   "_Example formats:_\n"
-                   "- *100k* (for 100,000)\n"
-                   "- *1.2m* (for 1,200,000)",
+        'message': "💰 *Let's talk numbers!*\n\n"
+                   "We need to know your *original loan amount* — this is the total amount you borrowed when you first took out your home loan.\n\n"
+                   "Here's how you can enter it:\n"
+                   "   * **100k** = RM100,000\n"
+                   "   * **1.2m** = RM1,200,000\n\n"
+                   "This amount helps us calculate your savings potential, so make sure it matches the original amount you borrowed for the property.",
         'next_step': 'get_loan_tenure',
         'validator': lambda x: x.replace('k', '').replace('m', '').replace('.', '').isdigit()
     },
     'get_loan_tenure': {
-        'message': "What was your *original loan tenure* in years? (Choose from *1 to 40* years).",
+        'message': "📅 *Time to set the timeline!*\n\n"
+                   "We need to know your *original loan tenure* — this is the total number of years you agreed to repay your home loan when you first signed up.\n\n"
+                   "💡 **Example:**\n"
+                   "   * If your loan was for 30 years, type **30**.\n"
+                   "   * If it was for 25 years, type **25**.",
         'next_step': 'get_monthly_repayment',
         'validator': lambda x: x.isdigit() and 1 <= int(x) <= 40
     },
     'get_monthly_repayment': {
-        'message': "What is your *current monthly repayment*?\n\n"
-                   "_Example formats:_\n"
-                   "- *1.5k* (for 1,500)\n"
-                   "- *1500*",
+        'message': "💸 *Let's talk about your monthly payments!*\n\n"
+                   "We need to know your *current monthly repayment* — this is the amount you're currently paying to the bank every month for your home loan.\n\n"
+                   "💡 **How to enter it:**\n"
+                   "   * Type **1.5k** for RM1,500\n"
+                   "   * Or just type **1500**\n\n"
+                   "This info helps us compare your current deal with potential refinancing options — and spot the savings! 💥",
         'next_step': 'get_interest_rate',
         'validator': lambda x: x.replace('k', '').replace('.', '').isdigit()
     },
     'get_interest_rate': {
-        'message': "Do you know your current loan's *interest rate*? (e.g., *3.85*%).\n\n"
-                   "If you don't know, type *skip*.",
+        'message': "📈 *Let's talk interest — but no pressure!*\n\n"
+                   "Do you know your current loan's *interest rate*? This is the percentage rate your bank charges you on your loan.\n\n"
+                   "💡 **How to enter it:**\n"
+                   "   * If your rate is 3.85%, type **3.85**\n"
+                   "   * If you're not sure, just type **skip** — no worries, we can still calculate your potential savings!",
         'next_step': 'get_remaining_tenure',
         'validator': lambda x: x.lower() == 'skip' or x.replace('.', '').isdigit()
     },
     'get_remaining_tenure': {
-        'message': "How many years are *left on your loan*?\n\n"
-                   "_Example formats:_\n"
-                   "- *10* (for 10 years left)\n"
-                   "If you're not sure, type *skip*.",
+        'message': "⏳ *Almost there — let's check the clock on your loan!*\n\n"
+                   "How many years are *left on your loan*? This is the number of years you still have to pay before your loan is fully paid off.\n\n"
+                   "💡 **How to enter it:**\n"
+                   "   * If you have **10 years** left, type **10**.\n"
+                   "   * Not sure? No problem — just type **skip** and we'll still give you an estimate.\n\n"
+                   "This helps us fine-tune your savings potential, but it's totally optional. Let's keep it moving! 🚀",
         'next_step': 'process_completion',
         'validator': lambda x: x.lower() == 'skip' or x.isdigit()
     },
     'process_completion': {
-        'message': "*Thank you for providing the details!*\n\n"
-                   "We are now generating your *refinance savings summary*...",
+        'message': "🎉 *Great job — you're all set!*\n\n"
+                   "We're crunching the numbers to create your personalized *Refinance Savings Summary* 🧮💸.\n\n"
+                   "Sit tight for a moment — your potential savings are on the way! 🚀",
         'next_step': None,
         'validator': lambda x: True
     }
 }
+
 
 def process_user_input(current_step, user_data, message_body):
     if current_step == 'get_name':
@@ -101,11 +135,34 @@ def process_message():
     try:
         data = request.get_json()
         phone_number = data['entry'][0]['changes'][0]['value']['contacts'][0]['wa_id']
-        message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip()
+        message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip().lower()
+        
+        # Handle restart command
+        if message_body == 'restart':
+            USER_STATE[phone_number] = {'current_step': 'welcome_message'}
+            # Send welcome message
+            welcome_msg = STEP_CONFIG['welcome_message']['message']
+            send_whatsapp_message(phone_number, welcome_msg)
+            # Immediately advance to get_name step
+            USER_STATE[phone_number]['current_step'] = 'get_name'
+            get_name_msg = STEP_CONFIG['get_name']['message']
+            send_whatsapp_message(phone_number, get_name_msg)
+            return jsonify({"status": "success", "message": "Restarted and moved directly to get_name"}), 200
         
         user_data = USER_STATE.get(phone_number, {'current_step': 'welcome_message'})
         current_step = user_data.get('current_step', 'welcome_message')
-        
+
+        # If user has never interacted before, simulate initial welcome and immediate next step
+        if current_step == 'welcome_message' and 'name' not in user_data and message_body != 'restart':
+            # Send welcome message
+            welcome_msg = STEP_CONFIG['welcome_message']['message']
+            send_whatsapp_message(phone_number, welcome_msg)
+            # Move directly to get_name step
+            USER_STATE[phone_number]['current_step'] = 'get_name'
+            get_name_msg = STEP_CONFIG['get_name']['message']
+            send_whatsapp_message(phone_number, get_name_msg)
+            return jsonify({"status": "success", "message": "Initial welcome and moved directly to get_name"}), 200
+
         if current_step not in STEP_CONFIG:
             logging.error(f"⚠️ No step info for current step: {current_step} for phone: {phone_number}")
             send_whatsapp_message(phone_number, "An unexpected error occurred.")
@@ -122,11 +179,32 @@ def process_message():
         USER_STATE[phone_number] = user_data
 
         if user_data['current_step'] == 'process_completion':
-            summary_message = "*Your refinance savings summary is ready!*\n"
-            summary_message += f"*Monthly Savings:* RM 500\n"
-            summary_message += f"*Total Savings Over Loan Term:* RM 60,000\n"
-            summary_message += f"*Potential New Interest Rate:* 3.85%\n"
-            summary_message += f"*Updated Loan Tenure:* 15 years"
+            # Simulated calculation logic
+            monthly_savings = 500
+            yearly_savings = monthly_savings * 12
+            loan_term_savings = monthly_savings * (30 * 12)
+            years_saved = loan_term_savings // user_data.get('current_repayment', monthly_savings)
+            months_saved = (loan_term_savings % user_data.get('current_repayment', monthly_savings)) // monthly_savings
+
+            summary_message = f"🏦 **Refinance Savings Summary** 🏦\n\n"
+            summary_message += f"📅 **Current Monthly Repayment:** RM {user_data.get('current_repayment', 'N/A')} "
+            summary_message += f"📉 **Estimated New Repayment:** RM {user_data.get('current_repayment', 'N/A') - monthly_savings} "
+            summary_message += f"💸 **Monthly Savings:** RM {monthly_savings} "
+            summary_message += f"💥 **Yearly Savings:** RM {yearly_savings} "
+            summary_message += f"💰 **Total Savings Over the Loan Term:** RM {loan_term_savings}\n\n"
+
+            summary_message += f"🎉 **GOOD NEWS!** 🎉\n\n"
+            summary_message += f"By refinancing, you could save up to **RM {monthly_savings} every month**, "
+            summary_message += f"which adds up to **RM {yearly_savings} every year** and a total of "
+            summary_message += f"**RM {loan_term_savings} over the entire loan term**! "
+            summary_message += f"To put it into perspective, this is like saving **{years_saved} year(s) "
+            summary_message += f"and {months_saved} month(s) worth of your current repayments** "
+            summary_message += "— a significant step toward financial freedom!\n\n"
+
+            summary_message += f"🔍 **What's next?** A specialist will be assigned to generate a **full detailed report** for you — *free of charge and with no obligations!* "
+            summary_message += "They can also assist you if you decide to refinance.\n\n"
+            summary_message += f"📞 **Need help or have questions?** Contact our admin directly at **wa.me/60167177813**.\n\n"
+            summary_message += f"💬 **Got more questions about refinancing or home loans?** Ask away! FinZo AI is here to provide the best possible answers for you! 🚀"
 
             send_whatsapp_message(phone_number, summary_message)
             USER_STATE.pop(phone_number, None)
@@ -138,5 +216,7 @@ def process_message():
         return jsonify({"status": "success", "message": next_message}), 200
     except Exception as e:
         logging.error(f"Unexpected error in process_message: {e}")
-        send_whatsapp_message(phone_number, "An unexpected error occurred.")
+        # Note: phone_number might not be defined if error happens very early
+        if 'phone_number' in locals():
+            send_whatsapp_message(phone_number, "An unexpected error occurred.")
         return jsonify({"status": "failed"}), 500
