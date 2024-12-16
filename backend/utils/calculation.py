@@ -17,101 +17,71 @@ def calculate_refinance_savings(
     """
     try:
         with current_app.app_context():
+            # Store the result data to return at the end
+            result = {}
+
             # 1⃣ Validate required inputs
-            if not original_loan_amount or not original_tenure_years or not current_monthly_repayment:
-                logging.error("\u274c Missing essential input data. Cannot proceed with calculation.")
+            if original_loan_amount is None or original_tenure_years is None or current_monthly_repayment is None:
+                logging.error("❌ Missing essential input data. Cannot proceed with calculation.")
                 return {"error": "Missing essential loan information."}
 
-            # 2⃣ Calculate the interest rate of the existing loan
-            total_payments = original_tenure_years * 12  # Total number of payments (in months)
-            try:
-                monthly_interest_rate = compute_existing_loan_interest_rate(
-                    original_loan_amount, 
-                    current_monthly_repayment, 
-                    total_payments
-                )
-                existing_interest_rate = round(monthly_interest_rate * 12 * 100, 2)  # Convert to APR
-            except Exception as e:
-                logging.error(f"\u274c Error calculating existing interest rate: {e}")
-                return {"error": "Error calculating existing loan interest rate."}
+            logging.info(f"✅ Essential input received. Original Loan: {original_loan_amount}, Tenure: {original_tenure_years} years, Current Monthly Repayment: {current_monthly_repayment}")
 
-            # 3⃣ Query BankRate for best rate for new refinance
+            # 2⃣ Query BankRate for best rate for new refinance
             try:
                 bank_rate = BankRate.query.filter(
                     BankRate.min_amount <= original_loan_amount,
                     BankRate.max_amount >= original_loan_amount
                 ).order_by(BankRate.interest_rate).first()
+
+                if not bank_rate:
+                    raise ValueError(f"No bank rate found for loan amount: {original_loan_amount}")
+                
+                new_interest_rate = bank_rate.interest_rate
+                result['new_interest_rate'] = new_interest_rate
+                logging.info(f"✅ Bank rate found: {new_interest_rate}% for loan amount: {original_loan_amount}")
             except Exception as e:
-                logging.error(f"\u274c Error querying BankRate: {e}")
+                logging.error(f"❌ Error querying BankRate: {e}")
                 return {"error": "Error querying BankRate."}
 
-            if not bank_rate:
-                logging.error(f"\u274c No bank rate found for loan amount: {original_loan_amount}")
-                return {"error": "No bank rate found for this loan amount."}
-            
-            new_interest_rate = bank_rate.interest_rate
-            
-            if not new_tenure_years:
-                new_tenure_years = original_tenure_years  # Assume new tenure is same as original if not provided
-
-            # 4⃣ Calculate new monthly repayment using amortization formula
-            monthly_interest_rate = new_interest_rate / 100 / 12  # Convert APR to monthly rate
-            total_payments_new = new_tenure_years * 12  # Total payments for new loan
-            
+            # 3⃣ Calculate new monthly repayment using amortization formula
             try:
+                if not new_tenure_years:
+                    new_tenure_years = original_tenure_years  # Assume new tenure is same as original if not provided
+
+                monthly_interest_rate = new_interest_rate / 100 / 12  # Convert APR to monthly rate
+                total_payments_new = new_tenure_years * 12  # Total payments for new loan
+                
                 if monthly_interest_rate == 0:
                     new_monthly_repayment = original_loan_amount / total_payments_new
                 else:
                     new_monthly_repayment = original_loan_amount * (monthly_interest_rate * (1 + monthly_interest_rate) ** total_payments_new) / ((1 + monthly_interest_rate) ** total_payments_new - 1)
-            except ZeroDivisionError as e:
-                logging.error(f"\u274c ZeroDivisionError in monthly payment calculation: {e}")
-                return {"error": "Error in monthly payment calculation due to zero division."}
+                
+                result['new_monthly_repayment'] = round(new_monthly_repayment, 2)
+                logging.info(f"✅ New monthly repayment: {result['new_monthly_repayment']}")
+            except Exception as e:
+                logging.error(f"❌ Error calculating new monthly repayment: {e}")
+                return {"error": "Error in monthly payment calculation."}
 
-            # 5⃣ Calculate the total cost of existing and new loans
-            total_existing_cost = current_monthly_repayment * total_payments  # Current loan total cost
-            total_new_cost = new_monthly_repayment * total_payments_new  # New loan total cost
+            # 4⃣ Calculate savings
+            try:
+                monthly_savings = current_monthly_repayment - new_monthly_repayment  # Monthly difference
+                yearly_savings = monthly_savings * 12  # Annual savings
+                total_existing_cost = current_monthly_repayment * original_tenure_years * 12
+                total_new_cost = new_monthly_repayment * new_tenure_years * 12
+                lifetime_savings = total_existing_cost - total_new_cost  # Total savings over the loan term
 
-            # 6⃣ Calculate savings
-            monthly_savings = current_monthly_repayment - new_monthly_repayment  # Monthly difference
-            yearly_savings = monthly_savings * 12  # Annual savings
-            lifetime_savings = total_existing_cost - total_new_cost  # Total savings over the loan term
-            total_months_saved = lifetime_savings / current_monthly_repayment if current_monthly_repayment > 0 else 0  # Total months saved
-            years_saved = int(total_months_saved // 12)  # Convert to years
-            months_saved = int(total_months_saved % 12)  # Get remaining months
+                result['monthly_savings'] = round(monthly_savings, 2)
+                result['yearly_savings'] = round(yearly_savings, 2)
+                result['lifetime_savings'] = round(lifetime_savings, 2)
+                logging.info(f"✅ Monthly savings: {result['monthly_savings']}, Yearly savings: {result['yearly_savings']}, Lifetime savings: {result['lifetime_savings']}")
+            except Exception as e:
+                logging.error(f"❌ Error calculating savings: {e}")
+                return {"error": "Error calculating savings."}
 
-            # 7⃣ Return the summary of savings
-            return {
-                'new_monthly_repayment': round(new_monthly_repayment, 2),
-                'monthly_savings': round(monthly_savings, 2),
-                'yearly_savings': round(yearly_savings, 2),
-                'lifetime_savings': round(lifetime_savings, 2),
-                'years_saved': f"{years_saved} year(s) {months_saved} month(s)",
-                'existing_interest_rate': existing_interest_rate
-            }
+            # 5⃣ Return all the data we collected
+            return result
 
     except Exception as e:
-        logging.exception(f"\u274c General error in refinance calculation: {e}")
+        logging.exception(f"❌ General error in refinance calculation: {e}")
         return {"error": "General error in refinance calculation."}
-
-
-def compute_existing_loan_interest_rate(original_loan_amount, current_monthly_repayment, total_payments):
-    """
-    Calculate the effective interest rate of an existing loan using the amortization formula.
-    """
-    import sympy as sp
-    i = sp.symbols('i')  # Interest rate per month
-    equation = sp.Eq(
-        current_monthly_repayment, 
-        (original_loan_amount * (i * (1 + i)**total_payments)) / ((1 + i)**total_payments - 1)
-    )
-    
-    try:
-        # Solve for the interest rate
-        solutions = sp.solve(equation, i)
-        monthly_interest_rate = [sol.evalf() for sol in solutions if sol.is_real and sol > 0]
-        if not monthly_interest_rate:
-            raise ValueError(f"No real positive solution for interest rate found.")
-        return float(monthly_interest_rate[0])
-    except Exception as e:
-        logging.error(f"\u274c Error solving interest rate equation: {e}")
-        raise e
