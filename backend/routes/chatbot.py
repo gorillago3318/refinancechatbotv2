@@ -153,13 +153,23 @@ def process_user_input(current_step, user_data, message_body):
         logging.error(f"Unexpected error while processing step '{current_step}' with input '{message_body}': {e}")
         logging.error(traceback.format_exc())
 
+import logging
+import traceback
+from flask import Blueprint, request, jsonify
+from backend.utils.calculation import calculate_refinance_savings
+from backend.utils.whatsapp import send_whatsapp_message
+from backend.models import User, Lead  # Ensure the models are imported
+from backend.extensions import db  # Make sure to import the database extension
+
+chatbot_bp = Blueprint('chatbot', __name__)
+
+USER_STATE = {}
+
 @chatbot_bp.route('/process_message', methods=['POST'])
 def process_message():
     try:
         data = request.get_json()
-        
         phone_number = data['entry'][0]['changes'][0]['value']['contacts'][0]['wa_id']
-        
         message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip().lower()
 
         # Handle restart command
@@ -172,18 +182,14 @@ def process_message():
             send_whatsapp_message(phone_number, get_name_msg)
             return jsonify({"status": "success", "message": "Restarted and moved directly to get_name"}), 200
 
-        # Initialize user_data if it doesn't exist
         if phone_number not in USER_STATE:
             USER_STATE[phone_number] = {'current_step': 'welcome_message'}
-        
-        user_data = USER_STATE[phone_number]
 
-        # Check if current_step exists in user_data
+        user_data = USER_STATE[phone_number]
         current_step = user_data.get('current_step', 'welcome_message')
-        
         logging.info(f"Current step for {phone_number}: {current_step}")
 
-        if current_step == 'welcome_message' and ('name' not in user_data) and (message_body != 'restart'):
+        if current_step == 'welcome_message' and 'name' not in user_data and message_body != 'restart':
             welcome_msg = STEP_CONFIG['welcome_message']['message']
             send_whatsapp_message(phone_number, welcome_msg)
             USER_STATE[phone_number]['current_step'] = 'get_name'
@@ -191,7 +197,6 @@ def process_message():
             send_whatsapp_message(phone_number, get_name_msg)
             return jsonify({"status": "success", "message": "Initial welcome and moved directly to get_name"}), 200
 
-        # Validate current step
         if current_step not in STEP_CONFIG:
             logging.error(f"⚠️ No step info for current step: {current_step} for phone: {phone_number}")
             send_whatsapp_message(phone_number, "An unexpected error occurred.")
@@ -199,74 +204,113 @@ def process_message():
 
         step_info = STEP_CONFIG[current_step]
 
-        # Validate input
         if not step_info['validator'](message_body):
             send_whatsapp_message(phone_number, f"Invalid input. {step_info['message']}")
             return jsonify({"status": "failed"}), 400
 
-        # Process input based on current step
         process_user_input(current_step, user_data, message_body)
-        
         user_data['current_step'] = step_info['next_step']
 
-         # Log the updated user data
         logging.info(f"Updated user data for {phone_number}: {user_data}")
-         
         USER_STATE[phone_number] = user_data
 
         if user_data['current_step'] == 'process_completion':
-             # Simulated calculation logic here...
-             monthly_savings = 500  # Placeholder value; replace with actual calculation logic
-             yearly_savings = monthly_savings * 12
-             loan_term_savings = monthly_savings * (30 * 12)  # Example for a 30-year term
-            
-             years_saved = loan_term_savings // user_data.get('current_repayment', monthly_savings)
-             months_saved = (loan_term_savings % user_data.get('current_repayment', monthly_savings)) // monthly_savings
-            
-             # First Message
-             summary_message_1 = f"🏦 **Refinance Savings Summary** 🏦\n\n"
-             summary_message_1 += f"📅 **Current Monthly Repayment:** RM {user_data.get('current_repayment', 'N/A')} "
-             summary_message_1 += f"📉 **Estimated New Repayment:** RM {user_data.get('current_repayment', '') - monthly_savings} "
-             summary_message_1 += f"💸 **Monthly Savings:** RM {monthly_savings} "
-             summary_message_1 += f"💥 **Yearly Savings:** RM {yearly_savings} "
-             summary_message_1 += f"💰 **Total Savings Over the Loan Term:** RM {loan_term_savings}\n\n"
+            try:
+                # Extract relevant user data for calculation
+                original_loan_amount = user_data.get('original_loan_amount')
+                original_loan_tenure = user_data.get('original_loan_tenure')
+                current_repayment = user_data.get('current_repayment')
 
-             # Send the first message
-             send_whatsapp_message(phone_number, summary_message_1)
+                calculation_results = calculate_refinance_savings(
+                    original_loan_amount=original_loan_amount,
+                    original_loan_tenure=original_loan_tenure,
+                    current_monthly_repayment=current_repayment
+                )
 
-             # Second Message
-             summary_message_2 = f"🎉 **GOOD NEWS!** 🎉\n\n"
-             summary_message_2 += f"By refinancing, you could save up to **RM {monthly_savings} every month**, "
-             summary_message_2 += f"which adds up to **RM {yearly_savings} every year** and a total of "
-             summary_message_2 += f"**RM {loan_term_savings} over the entire loan term**! "
-             summary_message_2 += f"To put it into perspective, this is like saving **{years_saved} year(s) "
-             summary_message_2 += f"and {months_saved} month(s) worth of your current repayments** "
-             summary_message_2 += "— a significant step toward financial freedom!\n\n"
+                if 'error' in calculation_results:
+                    logging.error(f"❌ Error in calculation: {calculation_results['error']}")
+                    send_whatsapp_message(phone_number, "An error occurred while calculating your refinance savings.")
+                    return jsonify({"status": "failed", "message": calculation_results['error']}), 500
 
-             summary_message_2 += f"🔍 **What's next?** A specialist will be assigned to generate a **full detailed report** for you — *free of charge and with no obligations!* "
-             summary_message_2 += "They can also assist you if you decide to refinance.\n\n"
+                # Extract the results
+                monthly_savings = calculation_results.get('monthly_savings', 0)
+                yearly_savings = calculation_results.get('yearly_savings', 0)
+                lifetime_savings = calculation_results.get('lifetime_savings', 0)
+                years_saved = calculation_results.get('years_saved', 0)
+                months_saved = calculation_results.get('months_saved', 0)
 
-             summary_message_2 += f"📞 **Need help or have questions?** Contact our admin directly at **wa.me/60167177813**.\n\n"
+                # Generate and send summary message 1
+                summary_message_1 = f"🏦 **Refinance Savings Summary** 🏦\n\n"
+                summary_message_1 += f"📅 **Current Monthly Repayment:** RM {user_data.get('current_repayment', 'N/A')} \n"
+                summary_message_1 += f"📉 **Estimated New Repayment:** RM {calculation_results.get('new_monthly_repayment', 'N/A')} \n"
+                summary_message_1 += f"💸 **Monthly Savings:** RM {monthly_savings} \n"
+                summary_message_1 += f"💥 **Yearly Savings:** RM {yearly_savings} \n"
+                summary_message_1 += f"💰 **Total Savings Over the Loan Term:** RM {lifetime_savings}\n\n"
 
-             summary_message_2 += f"💬 **Got more questions about refinancing or home loans?** Ask away! FinZo AI is here to provide the best possible answers for you! 🚀"
+                send_whatsapp_message(phone_number, summary_message_1)
 
-             # Send the second message immediately
-             send_whatsapp_message(phone_number, summary_message_2)
+                # Generate and send summary message 2
+                summary_message_2 = f"🎉 **GOOD NEWS!** 🎉\n\n"
+                summary_message_2 += f"By refinancing, you could save up to **RM {monthly_savings} every month**, "
+                summary_message_2 += f"which adds up to **RM {yearly_savings} every year** and a total of "
+                summary_message_2 += f"**RM {lifetime_savings} over the entire loan term**! \n"
+                summary_message_2 += f"To put it into perspective, this is like saving **{years_saved} year(s) and {months_saved} month(s) worth of your current repayments** — a significant step toward financial freedom! 🚀"
 
-             USER_STATE.pop(phone_number, None)
+                send_whatsapp_message(phone_number, summary_message_2)
 
-             return jsonify({"status": "success", "message": "Process complete"}), 200
+                # Update the database
+                update_database(phone_number, user_data, calculation_results)
+
+            except Exception as e:
+                logging.error(f"Error during process_completion: {e}")
+                logging.error(traceback.format_exc())
+
+            USER_STATE.pop(phone_number, None)
+            return jsonify({"status": "success", "message": "Process complete"}), 200
 
         next_message = STEP_CONFIG[user_data['current_step']]['message']
         send_whatsapp_message(phone_number, next_message)
-
         return jsonify({"status": "success", "message": next_message}), 200
 
     except Exception as e:
-         logging.error(f"Unexpected error in process_message: {e}")
-         logging.error(traceback.format_exc())  # Log full stack trace
+        logging.error(f"Unexpected error in process_message: {e}")
+        logging.error(traceback.format_exc())
+        if 'phone_number' in locals():
+            send_whatsapp_message(phone_number, "An unexpected error occurred.")
+        return jsonify({"status": "failed"}), 500
 
-         if phone_number in locals():
-              send_whatsapp_message(phone_number,"An unexpected error occurred.")
-         
-    return jsonify({"status": "failed"}), 500 
+
+def update_database(phone_number, user_data, calculation_results):
+    """
+    Updates the database with the user's input data and calculation results.
+    
+    Args:
+        phone_number (str): The phone number of the user.
+        user_data (dict): The user data collected.
+        calculation_results (dict): The result of the refinance savings calculation.
+    """
+    try:
+        user = User.query.filter_by(wa_id=phone_number).first()
+        
+        if not user:
+            user = User(wa_id=phone_number, name=user_data.get('name'), age=user_data.get('age'))
+            db.session.add(user)
+            db.session.flush()  # Populate the user's ID
+
+        lead = Lead(
+            user_id=user.id,
+            original_loan_amount=user_data.get('original_loan_amount'),
+            original_loan_tenure=user_data.get('original_loan_tenure'),
+            current_repayment=user_data.get('current_repayment'),
+            new_repayment=calculation_results.get('new_monthly_repayment', 0.0),
+            monthly_savings=calculation_results.get('monthly_savings', 0.0),
+            yearly_savings=calculation_results.get('yearly_savings', 0.0),
+            total_savings=calculation_results.get('lifetime_savings', 0.0),
+            years_saved=calculation_results.get('years_saved', 0.0)
+        )
+        
+        db.session.add(lead)
+        db.session.commit()
+        logging.info(f"✅ Database updated successfully for user {phone_number}")
+    except Exception as e:
+        logging.error(f"❌ Error updating database for {phone_number}: {e}")

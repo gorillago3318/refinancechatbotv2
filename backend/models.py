@@ -62,9 +62,7 @@ class BankRate(db.Model):
     min_amount = db.Column(db.Float, nullable=False, index=True)  # Minimum amount for the rate
     max_amount = db.Column(db.Float, nullable=False, index=True)  # Maximum amount for the rate
     interest_rate = db.Column(db.Float, nullable=False)  # The rate for the loan amounts within min/max
-    
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)  # Timestamp for entry creation
-    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)  # Timestamp for updates
+    bank_name = db.Column(db.String(255), nullable=True)  # Added bank name
 
     def __repr__(self):
-        return f"<BankRate {self.id} - {self.min_amount} to {self.max_amount} @ {self.interest_rate}%>"
+        return f"<BankRate {self.id} - {self.min_amount} to {self.max_amount} @ {self.interest_rate}% from {self.bank_name}>"
