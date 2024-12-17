@@ -11,9 +11,10 @@ class Config:
     if SECRET_KEY == 'your_default_secret_key':
         logging.warning("SECRET_KEY is not set in .env. Using the default, which is not safe for production.")
 
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///local.db')  # Default to local SQLite DB if DATABASE_URL is not set
-    if SQLALCHEMY_DATABASE_URI.startswith('postgres://'):
-        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('postgres://', 'postgresql://', 1)
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///local.db')
+
+if SQLALCHEMY_DATABASE_URI.startswith('postgres://'):
+    SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('postgres://', 'postgresql://', 1)
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False  # Disable modification tracking for better performance
     DEBUG = os.getenv('DEBUG', 'True').lower() in ['true', '1', 'yes']  # Convert environment variable to boolean

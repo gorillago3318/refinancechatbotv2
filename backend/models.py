@@ -6,13 +6,13 @@ class User(db.Model):
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     wa_id = db.Column(db.String(20), unique=True, index=True, nullable=False)  # WhatsApp ID (e.g., phone number)
+    phone_number = db.Column(db.String(20), unique=True, index=True, nullable=False)  # Phone number field
     name = db.Column(db.String(50), nullable=True)  # User's name
     age = db.Column(db.Integer, nullable=True)  # User's age
     current_step = db.Column(db.String(50), nullable=False, default='get_name')  # The current step of the user's process
     
-    # Relationship with Lead - One User can have multiple Leads
-    leads = db.relationship('Lead', backref='user', cascade="all, delete-orphan")
-    
+    leads = db.relationship('Lead', backref='user', cascade="all, delete-orphan")  # Relationship with Lead
+
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)  # Timestamp for user creation
     updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)  # Timestamp for user updates
 
@@ -24,6 +24,8 @@ class Lead(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True, nullable=False)  # Link to the User table
+    phone_number = db.Column(db.String(20), nullable=False)  # New phone number field for Leads table
+    name = db.Column(db.String(50), nullable=False)  # Name field added here
     property_reference = db.Column(db.String(50), nullable=True, unique=True)  # Unique identifier for the property (can be random)
     original_loan_amount = db.Column(db.Float, nullable=False)  # Original loan amount
     original_loan_tenure = db.Column(db.Integer, nullable=False)  # Tenure in years
@@ -38,9 +40,6 @@ class Lead(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)  # Timestamp for lead creation
     updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)  # Timestamp for updates
-
-    def __repr__(self):
-        return f"<Lead {self.id} - {self.property_reference} (User ID: {self.user_id})>"
 
 class ChatLog(db.Model):
     __tablename__ = 'chat_logs'

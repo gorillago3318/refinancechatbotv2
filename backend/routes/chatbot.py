@@ -273,16 +273,19 @@ def update_database(phone_number, user_data, calculation_results):
           db.session.add(user)
           db.session.flush()
 
-      lead = Lead(user_id=user.id,
-                  phone_number=phone_number,
-                  original_loan_amount=user_data.get('original_loan_amount'),
-                  original_loan_tenure=user_data.get('original_loan_tenure'),
-                  current_repayment=user_data.get('current_repayment'),
-                  new_repayment=calculation_results.get('new_monthly_repayment', 0.0),
-                  monthly_savings=calculation_results.get('monthly_savings', 0.0),
-                  yearly_savings=calculation_results.get('yearly_savings', 0.0),
-                  total_savings=calculation_results.get('lifetime_savings', 0.0),
-                  years_saved=calculation_results.get('years_saved', 0.0))
+      lead = Lead(
+    user_id=user.id,
+    phone_number=user.phone_number,
+    name=user_data.get('name', 'Unnamed Lead'),  # This ensures a name is always provided
+    original_loan_amount=user_data.get('original_loan_amount'),
+    original_loan_tenure=user_data.get('original_loan_tenure'),
+    current_repayment=user_data.get('current_repayment'),
+    new_repayment=calculation_results.get('new_monthly_repayment', 0.0),
+    monthly_savings=calculation_results.get('monthly_savings', 0.0),
+    yearly_savings=calculation_results.get('yearly_savings', 0.0),
+    total_savings=calculation_results.get('lifetime_savings', 0.0),
+    years_saved=calculation_results.get('years_saved', 0.0)
+)
 
       db.session.add(lead)
       db.session.commit()
