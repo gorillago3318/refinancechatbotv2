@@ -2,11 +2,15 @@ import logging
 import time
 import traceback
 import json
+import os  # Import os to access environment variables
 from flask import Blueprint, request, jsonify
 from backend.utils.calculation import calculate_refinance_savings
 from backend.utils.whatsapp import send_whatsapp_message
 from backend.models import User, Lead
 from backend.extensions import db
+from openai import ChatCompletion  # Importing OpenAI for GPT support
+from backend.utils.presets import get_preset_response  # Assuming this imports a method to get responses from presets
+
 
 chatbot_bp = Blueprint('chatbot', __name__)
 
@@ -191,16 +195,24 @@ def process_message():
 
 def handle_process_completion(phone_number, user_data):
     calculation_results = calculate_refinance_savings(user_data['original_loan_amount'], user_data['original_loan_tenure'], user_data['current_repayment'])
-    if calculation_results.get('error'):
-        send_whatsapp_message(phone_number, 'Calculation error occurred.')
-        return jsonify({"status": "error"}), 500
+    
+    if calculation_results.get('monthly_savings', 0) <= 0:
+        message = (
+            "Thank you for using FinZo AI! Our analysis shows that your current loan rates are already in great shape. "
+            "We’ll be in touch if better offers become available.\n\n"
+            "📞 Need help or have questions? Contact our admin directly at wa.me/60167177813.\n"
+            "💬 Want to explore refinancing options or have questions on home loans? Our FinZo AI support is ready to assist you at any time!"
+        )
+        send_whatsapp_message(phone_number, message)
+        return jsonify({"status": "success"}), 200
     
     summary_messages = prepare_summary_messages(user_data, calculation_results, user_data.get('language_code', 'en'))
     for message in summary_messages:
         send_whatsapp_message(phone_number, message)
     
-    update_database(phone_number, user_data, calculation_results)
+    send_new_lead_to_admin(phone_number, user_data)
     return jsonify({"status": "success"}), 200
+
 
 
 def prepare_summary_messages(user_data, calculation_results, language_code):
@@ -261,3 +273,66 @@ def update_database(phone_number, user_data, calculation_results):
 
    except Exception as e:
       logging.error(f"❌ Error updating database for {phone_number}: {e}")
+
+def send_new_lead_to_admin(phone_number, user_data):
+    admin_number = os.getenv('ADMIN_PHONE_NUMBER')
+    if not admin_number:
+        logging.error("ADMIN_PHONE_NUMBER not set in environment variables.")
+        return
+    
+    message = (
+        f"📢 New Lead Alert! 📢\n\n"
+        f"👤 Name: {user_data.get('name', 'Unknown')}\n"
+        f"📞 Phone: {phone_number}\n"
+        f"💰 Loan Amount: RM {user_data.get('original_loan_amount')}\n"
+        f"📅 Tenure: {user_data.get('original_loan_tenure')} years\n"
+        f"📉 Monthly Repayment: RM {user_data.get('current_repayment')}\n\n"
+        f"👉 Click here to chat directly: https://wa.me/{phone_number}"
+    )
+    send_whatsapp_message(admin_number, message)
+
+
+def handle_gpt_query(question, user_data, phone_number):
+    """Handles GPT query requests from users with a limit on the number of questions per user."""
+    
+    # Get the GPT query limit from environment variable (default to 5 if not set)
+    GPT_QUERY_LIMIT = int(os.getenv('GPT_QUERY_LIMIT', 5))
+    
+    # Check if the user has reached the maximum query limit
+    if user_data.get('gpt_query_count', 0) >= GPT_QUERY_LIMIT:
+        message = (
+            f"You've reached the maximum limit of {GPT_QUERY_LIMIT} GPT questions. "
+            f"Please contact our admin for further assistance: wa.me/60167177813"
+        )
+        send_whatsapp_message(phone_number, message)
+        return
+
+    # Increment the user's GPT query count
+    user_data['gpt_query_count'] = user_data.get('gpt_query_count', 0) + 1
+
+    try:
+        # First, check if a preset response exists for the question
+        response = get_preset_response(question, user_data.get('language_code', 'en'))
+        
+        if response:
+            logging.info(f"Using preset response for query: {question}")
+            message = response
+        else:
+            # Call OpenAI GPT-3.5-turbo if no preset response is found
+            logging.info(f"No preset found. Using GPT-3.5-turbo for query: {question}")
+            response = ChatCompletion.create(
+                model="gpt-3.5-turbo", 
+                messages=[{"role": "user", "content": question}]
+            )
+            message = response['choices'][0]['message']['content']
+        
+    except Exception as e:
+        # Log any GPT API errors and send an error message to the user
+        logging.error(f"Error while handling GPT query for {phone_number}: {str(e)}")
+        message = (
+            "We're currently experiencing issues processing your request. "
+            "Please try again later or contact our admin for assistance: wa.me/60167177813"
+        )
+
+    # Send the GPT response to the user
+    send_whatsapp_message(phone_number, message)
