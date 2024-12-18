@@ -1,0 +1,25 @@
+{
+    "welcome_message": "🎉 *Welcome to FinZo AI – Your Personal Savings Hero!* 🎉\n\nLooking to save money on your home loan? You're in the right place! Our smart bot makes refinancing simple, clear, and stress-free. We'll show you how much you could save with a better deal. 💸\n\n*Stuck at any point?* No worries! Just type **\"restart\"** and we'll start fresh.\n\nReady to see how much you can save? 🚀",
+    "get_name": "📝 *To kick things off, we'll need your NAME* — so we know who to address when sharing your savings story!",
+    "get_age": "🎉 *Next up, we'll need your AGE* \n\n(between **18 and 70**).",
+    "get_loan_amount": "💰 *We need to know your ORIGINAL LOAN AMOUNT* — this is the total amount you borrowed when you first took out your home loan.\n\nHere's how you can enter it:\n * *100k* = RM100,000\n * *1.2m* = RM1,200,000",
+    "get_loan_tenure": "📅 *Next, we will need to know your ORIGINAL LOAN TENURE* — this is the total number of years you agreed to repay your home loan.",
+    "get_monthly_repayment": "💸 *We need to know your CURRENT MONTHLY INSTALLMENT* — this is the amount you're currently paying to the bank every month for your home loan.",
+    "get_interest_rate": "📈 Do you remember your current loan's *INTEREST RATE*? If you're not sure, just type **SKIP**",
+    "get_remaining_tenure": "⏳ *How many years are LEFT ON YOUR LOAN?* \n\nIf you have 10 years left, type *10*. If you're not sure, just type *SKIP*.",
+    "process_completion": "🎉 *Great job — you're all set!*\n\nWe're crunching the numbers to create your personalized *Refinance Savings Summary* 🧮💸.",
+    "summary_title": "🏦 **Refinance Savings Summary** 🏦",
+    "current_repayment": "📅 *Current Monthly Repayment:*",
+    "new_repayment": "📉 *Estimated New Repayment:*",
+    "monthly_savings": "💸 *Monthly Savings:*",
+    "yearly_savings": "💥 *Yearly Savings:*",
+    "total_savings": "💰 *Total Savings Over the Loan Term:*",
+    "good_news": "🎉 **GOOD NEWS!** 🎉",
+    "savings_breakdown": "By refinancing, you could save up to *RM {monthly_savings:,.2f} every month*, which adds up to *RM {yearly_savings:,.2f} every year* and a total of *RM {lifetime_savings:,.2f} over the entire loan term*!",
+    "whats_next": "🔍 *What's next?* A specialist will be assigned to generate a *FULL DETAILED REPORT* for you — *free of charge and with no obligations!*",
+    "invalid_input": "❌ Invalid input. Please try again.",
+    "age_error": "❌ Age must be between 18 and 70.",
+    "loan_tenure_error": "❌ Loan tenure must be between 1 and 40 years.",
+    "interest_rate_error": "❌ Interest rate must be between 3% and 10%."
+  }
+  

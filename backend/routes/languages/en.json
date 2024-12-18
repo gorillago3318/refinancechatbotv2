@@ -1,0 +1,17 @@
+{
+    "name_message": "Please enter your name.",
+    "age_message": "Please enter your age (must be between 18 and 70).",
+    "loan_amount_message": "Please enter your loan amount.",
+    "loan_tenure_message": "Please enter your loan tenure (1-40 years).",
+    "interest_rate_message": "Please enter your interest rate or type 'skip'.",
+    "remaining_tenure_message": "Please enter the remaining tenure for your loan.",
+    "repayment_message": "Please enter your current monthly repayment.",
+    "completion_message": "Thank you! We are processing your request.",
+    "choose_language_message": "Please choose your preferred language:\n1. English\n2. Bahasa Malaysia\n3. 中文 (Chinese)",
+    "summary_title_1": "🏦 *Refinance Savings Summary* 🏦",
+    "summary_content_1": "📅 Current Monthly Repayment: RM {current_repayment} \n📉 Estimated New Repayment: RM {new_repayment} \n💸 Monthly Savings: RM {monthly_savings} \n💥 Yearly Savings: RM {yearly_savings} \n💰 Total Savings Over the Loan Term: RM {lifetime_savings}",
+    "summary_title_2": "🎉 *GOOD NEWS!* 🎉",
+    "summary_content_2": "By refinancing, you could save up to RM {monthly_savings} every month, which adds up to RM {yearly_savings} every year and a total of RM {lifetime_savings} over the entire loan term! \nThis is like saving {years_saved} year(s) and {months_saved} month(s) worth of your current repayments! 🚀",
+    "summary_title_3": "🔍 What's next?",
+    "summary_content_3": "A specialist will be assigned to generate a FULL DETAILED REPORT for you — free of charge and with no obligations! They can also assist you if you decide to refinance.\n📞 Need help or have questions? Contact our admin directly at *{whatsapp_link}*.\n💬 Got more questions about refinancing or home loans? Ask away! FinZo AI is here to provide the best possible answers for you! 🚀"
+}

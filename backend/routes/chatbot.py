@@ -1,6 +1,7 @@
 import logging
 import time
 import traceback
+import json
 from flask import Blueprint, request, jsonify
 from backend.utils.calculation import calculate_refinance_savings
 from backend.utils.whatsapp import send_whatsapp_message
@@ -12,254 +13,220 @@ chatbot_bp = Blueprint('chatbot', __name__)
 # User Data Storage
 USER_STATE = {}
 
+# Load language files
+try:
+    with open('backend/routes/languages/en.json', 'r', encoding='utf-8') as f:
+        EN_MESSAGES = json.load(f)
+    logging.info(f"Successfully loaded en.json with {len(EN_MESSAGES)} keys.")
+except Exception as e:
+    logging.error(f"Error loading en.json file: {e}")
+    EN_MESSAGES = {}
+
+try:
+    with open('backend/routes/languages/ms.json', 'r', encoding='utf-8') as f:
+        MS_MESSAGES = json.load(f)
+    logging.info(f"Successfully loaded ms.json with {len(MS_MESSAGES)} keys.")
+except Exception as e:
+    logging.error(f"Error loading ms.json file: {e}")
+    MS_MESSAGES = {}
+
+try:
+    with open('backend/routes/languages/zh.json', 'r', encoding='utf-8') as f:
+        ZH_MESSAGES = json.load(f)
+    logging.info(f"Successfully loaded zh.json with {len(ZH_MESSAGES)} keys.")
+except Exception as e:
+    logging.error(f"Error loading zh.json file: {e}")
+    ZH_MESSAGES = {}
+
+LANGUAGE_OPTIONS = {'en': EN_MESSAGES, 'ms': MS_MESSAGES, 'zh': ZH_MESSAGES}
+
 STEP_CONFIG = {
-    'welcome_message': {
-        'message': "🎉 *Welcome to FinZo AI – Your Personal Savings Hero!* 🎉\n\n"
-                   "Looking to save money on your home loan? You're in the right place! Our smart bot makes refinancing simple, clear, and stress-free. We'll show you how much you could save with a better deal. 💸\n\n"
-                   "*Stuck at any point?* No worries! Just type **\"restart\"** and we'll start fresh.\n\n"
-                   "Ready to see how much you can save? 🚀",
+    'choose_language': {
+        'message': "choose_language_message",
         'next_step': 'get_name',
-        'validator': lambda x: True
+        'validator': lambda x, user_data=None: x in ['1', '2', '3']
     },
     'get_name': {
-        'message': "📝 *To kick things off, we'll need your NAME* — so we know who to address when sharing your savings story!",
+        'message': 'name_message',
         'next_step': 'get_age',
-        'validator': lambda x: len(x.strip()) > 0
+        'validator': lambda x, user_data=None: x.replace(' ', '').isalpha()
     },
     'get_age': {
-        'message': "🎉 *Next up, we'll need your AGE* \n\n(between **18 and 70**). This helps us tailor the best refinancing options for you!\n\n",
+        'message': 'age_message',
         'next_step': 'get_loan_amount',
-        'validator': lambda x: x.isdigit() and 18 <= int(x) <= 70
+        'validator': lambda x, user_data=None: x.isdigit() and 18 <= int(x) <= 70
     },
     'get_loan_amount': {
-        'message': "💰 *We need to know your ORIGINAL LOAN AMOUNT* — this is the total amount you borrowed when you first took out your home loan.\n\n"
-                   "Here's how you can enter it:\n"
-                   " * *100k* = RM100,000\n"
-                   " * *1.2m* = RM1,200,000\n\n"
-                   "This amount helps us calculate your savings potential, so make sure it matches the original amount you borrowed for the property.",
+        'message': 'loan_amount_message',
         'next_step': 'get_loan_tenure',
-        'validator': lambda x: x.replace('k', '').replace('m', '').replace('.', '').isdigit()
+        'validator': lambda x, user_data=None: x.isdigit()
     },
     'get_loan_tenure': {
-        'message': "📅 *Next, we will need to know your ORIGINAL LOAN TENURE* — this is the total number of years you agreed to repay your home loan when you first signed up.\n\n"
-                   "💡 **Example:**\n"
-                   " * If your loan was for 30 years, type *30*.\n"
-                   " * If it was for 25 years, type *25*.",
+        'message': 'loan_tenure_message',
         'next_step': 'get_monthly_repayment',
-        'validator': lambda x: x.isdigit() and 1 <= int(x) <= 40
+        'validator': lambda x, user_data=None: x.isdigit() and 1 <= int(x) <= 40
     },
     'get_monthly_repayment': {
-        'message': "💸 *Most Importantly, we need to know your CURRENT MONTHLY INSTALLMENT* — this is the amount you're currently paying to the bank every month for your home loan.\n\n"
-                   "💡 **How to enter it:**\n"
-                   " * Type *1.5k* for RM1,500\n"
-                   " * Or just type *1500*\n\n"
-                   "This info helps us compare your current deal with potential refinancing options — and spot the savings! 💥",
+        'message': 'repayment_message',
         'next_step': 'get_interest_rate',
-        'validator': lambda x: x.replace('k', '').replace('.', '').isdigit()
+        'validator': lambda x, user_data=None: x.isdigit()
     },
     'get_interest_rate': {
-        'message': "📈 Do you remember your current loan's *INTEREST RATE*? If you're not sure, just type **SKIP** \n\n— No worries, we can still calculate your potential savings! This is the percentage rate your bank charges you on your loan.\n\n"
-                   "💡 **How to enter it:**\n"
-                   " * If your rate is 3.85%, type *3.85*\n",
+        'message': 'interest_rate_message',
         'next_step': 'get_remaining_tenure',
-        'validator': lambda x: x.lower() == 'skip' or x.replace('.', '').isdigit()
+        'validator': lambda x, user_data=None: x.lower() == 'skip' or (x.replace('.', '').isdigit() and 3 <= float(x) <= 10)
     },
     'get_remaining_tenure': {
-        'message': "⏳ *Almost there — How many years are LEFT ON YOUR LOAN*? This is the number of years you still have to pay before your loan is fully paid off.\n\n"
-                   "💡 **How to enter it:**\n"
-                   " * If you have *10 years* left, type *10*.\n"
-                   " * Not sure? No problem — just type *SKIP* and we'll still give you an estimate.\n\n"
-                   "This helps us fine-tune your savings potential, but it's totally optional. Let's keep it moving! 🚀",
+        'message': 'remaining_tenure_message',
         'next_step': 'process_completion',
-        'validator': lambda x: x.lower() == 'skip' or x.isdigit()
+        'validator': lambda x, user_data: x.lower() == 'skip' or (x.isdigit() and int(x) < user_data.get('original_loan_tenure', 0))
     },
     'process_completion': {
-        'message': "🎉 *Great job — you're all set!*\n\n"
-                   "We're crunching the numbers to create your personalized *Refinance Savings Summary* 🧮💸.\n\n"
-                   "Sit tight for a moment — your potential savings are on the way! 🚀",
+        'message': 'completion_message',
         'next_step': None,
-        'validator': lambda x: True
+        'validator': lambda x, user_data=None: True
     }
 }
 
-def process_user_input(current_step, user_data, message_body):
-    """ Processes the user input for the current step and updates the user data accordingly. """
-    try:
-        logging.info(f"Processing input for step: {current_step} with message: {message_body}")
-        
-        if current_step == 'get_name':
-            user_data['name'] = message_body.strip().title()
-        
-        elif current_step == 'get_age' and message_body.isdigit():
-            user_data['age'] = int(message_body)
-        
-        elif current_step == 'get_loan_amount':
-            try:
-                if 'k' in message_body:
-                    user_data['original_loan_amount'] = float(message_body.replace('k', '').replace(',', '').strip()) * 1000
-                elif 'm' in message_body:
-                    user_data['original_loan_amount'] = float(message_body.replace('m', '').replace(',', '').strip()) * 1000000
-                else:
-                    user_data['original_loan_amount'] = float(message_body.replace(',', '').strip())
-            except ValueError:
-                logging.error(f"Invalid loan amount input: {message_body}")
-                raise
-        
-        elif current_step == 'get_loan_tenure' and message_body.isdigit():
-            user_data['original_loan_tenure'] = int(message_body)
-        
-        elif current_step == 'get_monthly_repayment':
-            try:
-                if 'k' in message_body:
-                    user_data['current_repayment'] = float(message_body.replace('k', '').replace(',', '').strip()) * 1000
-                else:
-                    user_data['current_repayment'] = float(message_body.replace(',', '').strip())
-            except ValueError:
-                logging.error(f"Invalid monthly repayment input: {message_body}")
-                raise
-        
-        elif current_step == 'get_interest_rate':
-            if message_body.lower() != 'skip' and message_body.replace('.', '').isdigit():
-                user_data['interest_rate'] = float(message_body)
-        
-        elif current_step == 'get_remaining_tenure':
-            if message_body.lower() != 'skip' and message_body.isdigit():
-                user_data['remaining_tenure'] = int(message_body)
 
-        logging.info(f"Updated user data for step '{current_step}': {user_data}")
-    
-    except ValueError as ve:
-        logging.error(f"ValueError while processing step '{current_step}' with input '{message_body}': {ve}")
-        raise
-    
+def process_user_input(current_step, user_data, message_body, language_code):
+    logging.debug(f"Processing input for step: {current_step} with message: {message_body}")
+    if current_step == 'get_name':
+        user_data['name'] = message_body.strip().title()
+    elif current_step == 'get_age':
+        user_data['age'] = int(message_body)
+    elif current_step == 'get_loan_amount':
+        user_data['original_loan_amount'] = int(message_body)
+    elif current_step == 'get_loan_tenure':
+        user_data['original_loan_tenure'] = int(message_body)
+    elif current_step == 'get_monthly_repayment':
+        user_data['current_repayment'] = int(message_body)
+    elif current_step == 'get_interest_rate' and message_body.lower() != 'skip':
+        user_data['interest_rate'] = float(message_body)
+    elif current_step == 'get_remaining_tenure' and message_body.lower() != 'skip':
+        user_data['remaining_tenure'] = int(message_body)
+
+def get_message(key, language_code):
+    try:
+        # First, check if the key is part of STEP_CONFIG
+        if key in STEP_CONFIG:
+            step_key = STEP_CONFIG[key]['message']
+        else:
+            # If the key is not a step, use it as-is
+            step_key = key
+
+        logging.debug(f"Trying to get message for key: '{step_key}' in language: '{language_code}'")
+
+        # Get the available keys from the selected language file
+        if language_code in LANGUAGE_OPTIONS:
+            available_keys = list(LANGUAGE_OPTIONS[language_code].keys())
+            logging.debug(f"Available keys in '{language_code}' file: {available_keys}")
+        else:
+            logging.error(f"Language '{language_code}' is not found in LANGUAGE_OPTIONS.")
+            return 'Message not found'
+
+        # Get the message from the language file
+        message = LANGUAGE_OPTIONS.get(language_code, {}).get(step_key, 'Message not found')
+        if message == 'Message not found':
+            logging.error(f"Message key '{step_key}' not found in language file for {language_code}. Available keys: {available_keys if 'available_keys' in locals() else 'No keys loaded'}")
     except Exception as e:
-        logging.error(f"Unexpected error while processing step '{current_step}' with input '{message_body}': {e}")
-        raise
+        logging.error(f"Error while getting message key '{key}' for language '{language_code}': {e}")
+        message = 'Message not found'
+    
+    return message
+
 
 @chatbot_bp.route('/process_message', methods=['POST'])
 def process_message():
     try:
         data = request.get_json()
-        
+        logging.debug(f"Full incoming request: {data}")
         phone_number = data['entry'][0]['changes'][0]['value']['contacts'][0]['wa_id']
         message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip().lower()
-
-        # Handle restart command
+        
         if message_body == 'restart':
-            USER_STATE[phone_number] = {'current_step': 'welcome_message'}
-            welcome_msg = STEP_CONFIG['welcome_message']['message']
-            send_whatsapp_message(phone_number, welcome_msg)
-            USER_STATE[phone_number]['current_step'] = 'get_name'
-            get_name_msg = STEP_CONFIG['get_name']['message']
-            send_whatsapp_message(phone_number, get_name_msg)
-            logging.info(f"User {phone_number} restarted. Current step is now 'get_name'.")
-            return jsonify({"status": "success", "message": "Restarted and moved directly to get_name"}), 200
+            USER_STATE[phone_number] = {'current_step': 'choose_language'}
+            message = get_message('choose_language', 'en')
+            logging.info(f"Sending language selection message to {phone_number}: {message}")
+            send_whatsapp_message(phone_number, message)
+            return jsonify({"status": "success"}), 200
 
-        # Initialize user state if not exists
         if phone_number not in USER_STATE:
-            USER_STATE[phone_number] = {'current_step': 'get_name'}
+            USER_STATE[phone_number] = {'current_step': 'choose_language'}
 
         user_data = USER_STATE[phone_number]
-        current_step = user_data.get('current_step', 'get_name')
-        
-        logging.info(f"Current step for {phone_number}: {current_step}")
+        current_step = user_data.get('current_step', 'choose_language')
 
-        # Validate input based on current step
+        logging.info(f"Current step for {phone_number}: {current_step}")
+        logging.info(f"User data for {phone_number}: {user_data}")
+        
+        if current_step == 'choose_language' and message_body in ['1', '2', '3']:
+            user_data['language_code'] = ['en', 'ms', 'zh'][int(message_body) - 1]
+            logging.info(f"User selected language: {user_data['language_code']}")
+            user_data['current_step'] = STEP_CONFIG['choose_language']['next_step']
+
         step_info = STEP_CONFIG.get(current_step)
         
-        if not step_info or not step_info['validator'](message_body):
-            # If invalid input, resend the current step's message
-            send_whatsapp_message(phone_number, step_info['message'])
-            return jsonify({"status": "failed", "message": "Invalid input"}), 400
+        if not step_info['validator'](message_body, user_data):
+            message = get_message(current_step, user_data.get('language_code', 'en'))
+            logging.info(f"Validation failed for step '{current_step}' with message body '{message_body}'. Sending message: {message}")
+            send_whatsapp_message(phone_number, message)
+            return jsonify({"status": "failed"}), 400
 
-        # Process user input
-        process_user_input(current_step, user_data, message_body)
-        
-        # Update next step
+        process_user_input(current_step, user_data, message_body, user_data.get('language_code', 'en'))
         user_data['current_step'] = step_info['next_step']
-        
-        logging.info(f"Updated user data for {phone_number}: {user_data}")
-        
-        # Handle process completion
+
         if user_data['current_step'] == 'process_completion':
+            logging.info(f"Handling process completion for {phone_number}")
             return handle_process_completion(phone_number, user_data)
 
-        # Send next message
-        next_message = STEP_CONFIG[user_data['current_step']]['message']
-        send_whatsapp_message(phone_number, next_message)
-        
-        return jsonify({"status": "success", "message": next_message}), 200
-    
+        message = get_message(user_data['current_step'], user_data.get('language_code', 'en'))
+        logging.info(f"Sending next step message to {phone_number}: {message}")
+        send_whatsapp_message(phone_number, message)
+        return jsonify({"status": "success"}), 200
+
     except Exception as e:
-        logging.error(f"Unexpected error in process_message: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500   
-                
+        logging.error(f"Error in process_message: {e}")
+        return jsonify({"status": "error"}), 500
+
 def handle_process_completion(phone_number, user_data):
-    """ Handles completion of process by calculating refinance savings and sending results. """
-    try:
-       # Extract relevant user data for calculation
-       original_loan_amount = user_data.get('original_loan_amount')
-       original_loan_tenure = user_data.get('original_loan_tenure')
-       current_repayment = user_data.get('current_repayment')
+    calculation_results = calculate_refinance_savings(user_data['original_loan_amount'], user_data['original_loan_tenure'], user_data['current_repayment'])
+    if calculation_results.get('error'):
+        send_whatsapp_message(phone_number, 'Calculation error occurred.')
+        return jsonify({"status": "error"}), 500
+    
+    summary_messages = prepare_summary_messages(user_data, calculation_results, user_data.get('language_code', 'en'))
+    for message in summary_messages:
+        send_whatsapp_message(phone_number, message)
+    
+    update_database(phone_number, user_data, calculation_results)
+    return jsonify({"status": "success"}), 200
 
-       calculation_results = calculate_refinance_savings(
-           original_loan_amount=original_loan_amount,
-           original_loan_tenure=original_loan_tenure,
-           current_monthly_repayment=current_repayment
-       )
 
-       if calculation_results.get('error'):
-           logging.error(f"❌ Error in calculation: {calculation_results['error']}")
-           send_whatsapp_message(phone_number, "An error occurred while calculating your refinance savings.")
-           return jsonify({"status": "failed", "message": calculation_results['error']}), 500
+def prepare_summary_messages(user_data, calculation_results, language_code):
+    """Prepare summary messages to be sent as plain text to the user in their preferred language."""
+    
+    summary_message_1 = f"{get_message('summary_title_1', language_code)}\n\n" + get_message('summary_content_1', language_code).format(
+        current_repayment=f"{user_data['current_repayment']:.2f}",
+        new_repayment=f"{calculation_results['new_monthly_repayment']:.2f}",
+        monthly_savings=f"{calculation_results['monthly_savings']:.2f}",
+        yearly_savings=f"{calculation_results['yearly_savings']:.2f}",
+        lifetime_savings=f"{calculation_results['lifetime_savings']:.2f}"
+    )
 
-       # Prepare summary messages based on calculations...
-       summary_messages = prepare_summary_messages(user_data, calculation_results)
+    summary_message_2 = f"{get_message('summary_title_2', language_code)}\n\n" + get_message('summary_content_2', language_code).format(
+        monthly_savings=f"{calculation_results['monthly_savings']:.2f}",
+        yearly_savings=f"{calculation_results['yearly_savings']:.2f}",
+        lifetime_savings=f"{calculation_results['lifetime_savings']:.2f}",
+        years_saved=calculation_results['years_saved'],
+        months_saved=calculation_results['months_saved']
+    )
 
-       # Send summary messages...
-       for msg in summary_messages:
-           send_whatsapp_message(phone_number, msg)
+    summary_message_3 = f"{get_message('summary_title_3', language_code)}\n\n" + get_message('summary_content_3', language_code).format(
+        whatsapp_link="wa.me/60167177813"
+    )
 
-       # Update database with results...
-       update_database(phone_number, user_data, calculation_results)
-
-       USER_STATE.pop(phone_number, None)
-       
-       return jsonify({"status": "success", "message": "Process complete"}), 200
-
-    except Exception as e:
-       logging.error(f"Error during process_completion: {e}")
-
-def prepare_summary_messages(user_data, calculation_results):
-   """ Prepares summary messages based on calculated results. """
-   monthly_savings = calculation_results.get('monthly_savings', 0)
-   yearly_savings = calculation_results.get('yearly_savings', 0)
-   lifetime_savings = calculation_results.get('lifetime_savings', 0)
-   years_saved = calculation_results.get('years_saved', 0)
-   months_saved = calculation_results.get('months_saved', 0)
-
-   summary_messages = [
-       f"🏦 **Refinance Savings Summary** 🏦\n\n"
-       f"📅 *Current Monthly Repayment: RM {user_data.get('current_repayment', 0):,.2f}* \n"
-       f"📉 *Estimated New Repayment: RM {calculation_results.get('new_monthly_repayment', 0):,.2f}* \n"
-       f"💸 *Monthly Savings: RM {monthly_savings:,.2f}* \n"
-       f"💥 *Yearly Savings: RM {yearly_savings:,.2f}* \n"
-       f"💰 *Total Savings Over the Loan Term: RM {lifetime_savings:,.2f}*\n",
-
-       f"🎉 **GOOD NEWS!** 🎉\n\n"
-       f"By refinancing, you could save up to *RM {monthly_savings:,.2f} every month*, "
-       f"which adds up to *RM {yearly_savings:,.2f} every year* and a total of "
-       f"*RM {lifetime_savings:,.2f} over the entire loan term*! \n"
-       f"This is like saving *{years_saved} year(s) and {months_saved} month(s) worth of your current repayments*! 🚀",
-
-       f"🔍 *What's next?* A specialist will be assigned to generate a *FULL DETAILED REPORT* for you — "
-       f"*free of charge and with no obligations!* "
-       f"They can also assist you if you decide to refinance.\n\n"
-       f"📞 *Need help or have questions?* Contact our admin directly at **wa.me/60167177813**.\n\n"
-       f"💬 *Got more questions about refinancing or home loans?* Ask away! FinZo AI is here to provide the best possible answers for you! 🚀"
-   ]
-
-   return summary_messages
+    return [summary_message_1, summary_message_2, summary_message_3]
 
 def update_database(phone_number, user_data, calculation_results):
    """ Updates the database with the user's input data and calculation results. """
