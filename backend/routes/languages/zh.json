@@ -1,16 +1,17 @@
 {
-    "welcome_message": "🎉 *Welcome to FinZo AI – Your Personal Savings Hero!* 🎉\n\nLooking to save money on your home loan? You're in the right place! Our smart bot makes refinancing simple, clear, and stress-free. We'll show you how much you could save with a better deal. 💸\n\n*Stuck at any point?* No worries! Just type **\"restart\"** and we'll start fresh.\n\nReady to see how much you can save? 🚀",
-    "get_name": "📝 *To kick things off, we'll need your NAME* — so we know who to address when sharing your savings story!",
-    "get_age": "🎉 *Next up, we'll need your AGE* \n\n(between **18 and 70**). This helps us tailor the best refinancing options for you!\n\n",
-    "get_loan_amount": "💰 *We need to know your ORIGINAL LOAN AMOUNT* — this is the total amount you borrowed when you first took out your home loan.\n\nHere's how you can enter it:\n * *100k* = RM100,000\n * *1.2m* = RM1,200,000",
-    "get_loan_tenure": "📅 *Next, we will need to know your ORIGINAL LOAN TENURE* — this is the total number of years you agreed to repay your home loan when you first signed up.\n\n💡 **Example:**\n * If your loan was for 30 years, type *30*.\n * If it was for 25 years, type *25*.",
-    "get_monthly_repayment": "💸 *Most Importantly, we need to know your CURRENT MONTHLY INSTALLMENT* — this is the amount you're currently paying to the bank every month for your home loan.\n\n💡 **How to enter it:**\n * Type *1.5k* for RM1,500\n * Or just type *1500*",
-    "get_interest_rate": "📈 Do you remember your current loan's *INTEREST RATE*? If you're not sure, just type **SKIP** \n\n— No worries, we can still calculate your potential savings! This is the percentage rate your bank charges you on your loan.\n\n💡 **How to enter it:**\n * If your rate is 3.85%, type *3.85*",
-    "get_remaining_tenure": "⏳ *Almost there — How many years are LEFT ON YOUR LOAN*? This is the number of years you still have to pay before your loan is fully paid off.\n\n💡 **How to enter it:**\n * If you have *10 years* left, type *10*.\n * Not sure? No problem — just type *SKIP* and we'll still give you an estimate.",
-    "process_completion": "🎉 *Great job — you're all set!*\n\nWe're crunching the numbers to create your personalized *Refinance Savings Summary* 🧮💸.\n\nSit tight for a moment — your potential savings are on the way! 🚀",
-    "summary_messages": [
-        "🏦 **Refinance Savings Summary** 🏦\n\n📅 *Current Monthly Repayment: RM {current_repayment}* \n📉 *Estimated New Repayment: RM {new_monthly_repayment}* \n💸 *Monthly Savings: RM {monthly_savings}* \n💥 *Yearly Savings: RM {yearly_savings}* \n💰 *Total Savings Over the Loan Term: RM {lifetime_savings}*",
-        "🎉 **GOOD NEWS!** 🎉\n\nBy refinancing, you could save up to *RM {monthly_savings} every month*, which adds up to *RM {yearly_savings} every year* and a total of *RM {lifetime_savings} over the entire loan term*!",
-        "🔍 *What's next?* A specialist will be assigned to generate a *FULL DETAILED REPORT* for you — *free of charge and with no obligations!*"
-    ]
+    "name_message": "请输入您的姓名。",
+    "age_message": "请输入您的年龄（必须介于 18 至 70 岁之间）。",
+    "loan_amount_message": "请输入您的贷款金额。",
+    "loan_tenure_message": "请输入您的贷款期限（1-40 年）。",
+    "interest_rate_message": "请输入您的贷款利率，或者输入 'skip' 跳过。",
+    "remaining_tenure_message": "请输入您的剩余贷款期限。",
+    "repayment_message": "请输入您当前的每月还款额。",
+    "completion_message": "谢谢！我们正在处理您的请求。",
+    "choose_language_message": "请选择您偏好的语言：\n1. English\n2. Bahasa Malaysia\n3. 中文 (Chinese)",
+    "summary_title_1": "🏦 *再融资节省摘要* 🏦",
+    "summary_content_1": "📅 当前每月还款额: RM {current_repayment} \n📉 预计新还款额: RM {new_repayment} \n💸 每月节省: RM {monthly_savings} \n💥 每年节省: RM {yearly_savings} \n💰 整个贷款期限的总节省: RM {lifetime_savings}",
+    "summary_title_2": "🎉 *好消息!* 🎉",
+    "summary_content_2": "通过再融资，您每月最多可节省 RM {monthly_savings}，这相当于每年节省 RM {yearly_savings}，在整个贷款期限内总共可节省 RM {lifetime_savings}！\n这相当于节省了您当前的还款时间长达 {years_saved} 年 {months_saved} 个月！ 🚀",
+    "summary_title_3": "🔍 接下来是什么？",
+    "summary_content_3": "我们将为您分配一名专家，为您生成一份完整的详细报告 — 免费且无义务！如果您决定再融资，他们也可以为您提供帮助。\n📞 需要帮助或有疑问？请直接联系我们的管理员 *{whatsapp_link}*。\n💬 对再融资或住房贷款有更多疑问？请随时咨询！FinZo AI 随时为您提供最佳答案！ 🚀"
 }
