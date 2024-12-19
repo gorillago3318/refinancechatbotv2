@@ -1,11 +1,11 @@
 import os
 import logging
-from flask import Flask, request, current_app, jsonify  # ✅ current_app is imported here
-from dotenv import load_dotenv  # ✅ Load environment variables from .env file
-from backend.extensions import db, migrate  # ✅ Correct import for extensions
-from backend.models import User, Lead, ChatLog, BankRate  # ✅ Correct import for models
-from backend.routes.chatbot import chatbot_bp  # ✅ Correct import for chatbot blueprint
-from backend.utils.whatsapp import send_whatsapp_message  # ✅ Import WhatsApp message function
+from flask import Flask, request, jsonify  
+from dotenv import load_dotenv  
+from backend.extensions import db, migrate  
+from backend.models import User, Lead, ChatLog, BankRate  
+from backend.routes.chatbot import chatbot_bp  
+from backend.utils.whatsapp import send_whatsapp_message  
 from backend.config import configurations
 
 # Configure logging
@@ -16,13 +16,13 @@ load_dotenv()
 
 def create_app():
     """Create and configure the Flask app."""
-    app = Flask(__name__)  # Initialize the Flask app first
+    app = Flask(__name__)  # ✅ Initialize the Flask app at the top
 
     # Setup database config
     database_url = os.getenv('DATABASE_URL', 'sqlite:///local.db')
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url  # Use the initialized app
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url  # ✅ Database URL
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Initialize database and migration tools
@@ -32,7 +32,7 @@ def create_app():
     # Register routes (blueprints)
     register_routes(app)
 
-    return app
+    return app  # ✅ Make sure to return the app here
 
 
 def register_routes(app):
@@ -81,14 +81,14 @@ def register_routes(app):
                             logging.info(f"💎 Incoming message from {phone_number}: {user_message}")
                             
                             try:
-                                with app.app_context():  # ✅ Ensure current_app is used correctly
+                                with app.app_context():  
                                     response = app.view_functions['chatbot.process_message']()
                             except KeyError as e:
                                 logging.error(f"❌ Route 'chatbot.process_message' not found. Check your blueprint configuration. Error: {e}")
                                 response = None
 
-                if response and isinstance(response, tuple):  # Check if response is a tuple (response, status code)
-                    response = response[0]  # Extract the actual response
+                if response and isinstance(response, tuple):  
+                    response = response[0]  
                     return response
 
             except KeyError as e:
@@ -100,10 +100,14 @@ def register_routes(app):
 
         return 'OK', 200
     
+    # Print environment variables for debugging purposes
     print("WHATSAPP_API_URL:", os.getenv('WHATSAPP_API_URL'))
     print("WHATSAPP_API_TOKEN:", os.getenv('WHATSAPP_API_TOKEN'))
     print("WHATSAPP_PHONE_NUMBER_ID:", os.getenv('WHATSAPP_PHONE_NUMBER_ID'))
 
+
+# ✅ Expose the app globally so gunicorn can find it
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
     app.run(debug=True, port=5000)
