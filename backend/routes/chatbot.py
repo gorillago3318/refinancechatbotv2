@@ -2,15 +2,17 @@ import logging
 import time
 import traceback
 import json
+import datetime
 import os  # Import os to access environment variables
 from flask import Blueprint, request, jsonify
 from backend.utils.calculation import calculate_refinance_savings
 from backend.utils.whatsapp import send_whatsapp_message
 from backend.models import User, Lead
 from backend.extensions import db
-from openai import ChatCompletion  # Importing OpenAI for GPT support
+from openai import OpenAI
 from backend.utils.presets import get_preset_response  # Assuming this imports a method to get responses from presets
 
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 chatbot_bp = Blueprint('chatbot', __name__)
 
@@ -109,6 +111,11 @@ def process_user_input(current_step, user_data, message_body, language_code):
         user_data['interest_rate'] = float(message_body)
     elif current_step == 'get_remaining_tenure' and message_body.lower() != 'skip':
         user_data['remaining_tenure'] = int(message_body)
+    elif current_step == 'process_completion':  
+    # Logic for process completion
+        logging.info(f"Processing completion for phone_number: {user_data.get('phone_number')}")
+        user_data['mode'] = 'query'
+        return jsonify({"status": "success"}), 200
 
 def get_message(key, language_code):
     try:
@@ -149,17 +156,23 @@ def process_message():
         message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip().lower()
         
         if message_body == 'restart':
-            USER_STATE[phone_number] = {'current_step': 'choose_language'}
-            message = get_message('choose_language', 'en')
-            logging.info(f"Sending language selection message to {phone_number}: {message}")
-            send_whatsapp_message(phone_number, message)
-            return jsonify({"status": "success"}), 200
+            # Only reset if not in query mode
+            if not USER_STATE.get(phone_number, {}).get('mode') == 'query':
+                USER_STATE[phone_number] = {'current_step': 'choose_language'}
+                message = get_message('choose_language', 'en')
+                logging.info(f"Sending language selection message to {phone_number}: {message}")
+                send_whatsapp_message(phone_number, message)
+                return jsonify({"status": "success"}), 200
 
         if phone_number not in USER_STATE:
             USER_STATE[phone_number] = {'current_step': 'choose_language'}
 
         user_data = USER_STATE[phone_number]
         current_step = user_data.get('current_step', 'choose_language')
+        
+        if user_data.get('mode') == 'query':
+            handle_gpt_query(message_body, user_data, phone_number)
+            return jsonify({"status": "success"}), 200
 
         logging.info(f"Current step for {phone_number}: {current_step}")
         logging.info(f"User data for {phone_number}: {user_data}")
@@ -191,6 +204,9 @@ def process_message():
 
     except Exception as e:
         logging.error(f"Error in process_message: {e}")
+        if user_data.get('mode') == 'query':
+         handle_gpt_query(message_body, user_data, phone_number)
+         return jsonify({"status": "success"}), 200
         return jsonify({"status": "error"}), 500
 
 def handle_process_completion(phone_number, user_data):
@@ -204,6 +220,10 @@ def handle_process_completion(phone_number, user_data):
             "💬 Want to explore refinancing options or have questions on home loans? Our FinZo AI support is ready to assist you at any time!"
         )
         send_whatsapp_message(phone_number, message)
+        
+        # ✅ Switch the user to query mode after sending the message
+        user_data['mode'] = 'query'
+
         return jsonify({"status": "success"}), 200
     
     summary_messages = prepare_summary_messages(user_data, calculation_results, user_data.get('language_code', 'en'))
@@ -211,25 +231,27 @@ def handle_process_completion(phone_number, user_data):
         send_whatsapp_message(phone_number, message)
     
     send_new_lead_to_admin(phone_number, user_data)
+    
+    # ✅ Switch the user to query mode after sending the summary messages
+    user_data['mode'] = 'query'
+
     return jsonify({"status": "success"}), 200
-
-
 
 def prepare_summary_messages(user_data, calculation_results, language_code):
     """Prepare summary messages to be sent as plain text to the user in their preferred language."""
     
     summary_message_1 = f"{get_message('summary_title_1', language_code)}\n\n" + get_message('summary_content_1', language_code).format(
-        current_repayment=f"{user_data['current_repayment']:.2f}",
-        new_repayment=f"{calculation_results['new_monthly_repayment']:.2f}",
-        monthly_savings=f"{calculation_results['monthly_savings']:.2f}",
-        yearly_savings=f"{calculation_results['yearly_savings']:.2f}",
-        lifetime_savings=f"{calculation_results['lifetime_savings']:.2f}"
+        current_repayment=f"{user_data['current_repayment']:,.2f}",
+        new_repayment=f"{calculation_results['new_monthly_repayment']:,.2f}",
+        monthly_savings=f"{calculation_results['monthly_savings']:,.2f}",
+        yearly_savings=f"{calculation_results['yearly_savings']:,.2f}",
+        lifetime_savings=f"{calculation_results['lifetime_savings']:,.2f}"
     )
 
     summary_message_2 = f"{get_message('summary_title_2', language_code)}\n\n" + get_message('summary_content_2', language_code).format(
-        monthly_savings=f"{calculation_results['monthly_savings']:.2f}",
-        yearly_savings=f"{calculation_results['yearly_savings']:.2f}",
-        lifetime_savings=f"{calculation_results['lifetime_savings']:.2f}",
+        monthly_savings=f"{calculation_results['monthly_savings']:,.2f}",
+        yearly_savings=f"{calculation_results['yearly_savings']:,.2f}",
+        lifetime_savings=f"{calculation_results['lifetime_savings']:,.2f}",
         years_saved=calculation_results['years_saved'],
         months_saved=calculation_results['months_saved']
     )
@@ -291,18 +313,34 @@ def send_new_lead_to_admin(phone_number, user_data):
     )
     send_whatsapp_message(admin_number, message)
 
-
 def handle_gpt_query(question, user_data, phone_number):
-    """Handles GPT query requests from users with a limit on the number of questions per user."""
+    """Handles GPT query requests from users with a limit of 15 questions per 24-hour period."""
     
-    # Get the GPT query limit from environment variable (default to 5 if not set)
-    GPT_QUERY_LIMIT = int(os.getenv('GPT_QUERY_LIMIT', 5))
+    # Set the daily query limit (15 questions per day)
+    GPT_QUERY_LIMIT = 15
     
-    # Check if the user has reached the maximum query limit
+    # Check if 24 hours have passed since the user's last question
+    current_time = datetime.datetime.now()
+    last_question_time = user_data.get('last_question_time', None)
+    
+    if last_question_time:
+        # Check if 24 hours have passed
+        time_difference = current_time - last_question_time
+        if time_difference.total_seconds() > 86400:  # 24 hours = 86400 seconds
+            user_data['gpt_query_count'] = 0  # Reset daily limit
+            logging.info(f"✅ Reset query count for user {phone_number} after 24 hours.")
+
+    # Update the time of the user's most recent query
+    user_data['last_question_time'] = current_time
+    
+    # Check if the user has reached the daily limit of 15 questions
     if user_data.get('gpt_query_count', 0) >= GPT_QUERY_LIMIT:
         message = (
-            f"You've reached the maximum limit of {GPT_QUERY_LIMIT} GPT questions. "
-            f"Please contact our admin for further assistance: wa.me/60167177813"
+            "Thank you for using FinZo AI!\n"
+            "To ensure fair access to all users, we've implemented a fair usage policy with a daily limit of 15 questions per day.\n\n"
+            "You've reached your daily limit, but don't worry! Your limit will reset in 24 hours. \n"
+            "If you'd like immediate assistance, feel free to reach out to our admin directly at: wa.me/60167177813\n\n"
+            "We appreciate your understanding and look forward to supporting you again tomorrow! 🚀"
         )
         send_whatsapp_message(phone_number, message)
         return
@@ -310,25 +348,45 @@ def handle_gpt_query(question, user_data, phone_number):
     # Increment the user's GPT query count
     user_data['gpt_query_count'] = user_data.get('gpt_query_count', 0) + 1
 
+    # Notify the user when they have 10 or 5 questions remaining
+    questions_left = GPT_QUERY_LIMIT - user_data['gpt_query_count']
+    if questions_left == 10:
+        send_whatsapp_message(phone_number, "🤖 You have 10 questions remaining today.")
+    elif questions_left == 5:
+        send_whatsapp_message(phone_number, "🤖 You have 5 questions remaining today.")
+
     try:
-        # First, check if a preset response exists for the question
+        # Step 1: Check if a preset response exists for the question
         response = get_preset_response(question, user_data.get('language_code', 'en'))
         
         if response:
-            logging.info(f"Using preset response for query: {question}")
+            logging.info(f"✅ Preset response found for query: {question}")
             message = response
         else:
-            # Call OpenAI GPT-3.5-turbo if no preset response is found
-            logging.info(f"No preset found. Using GPT-3.5-turbo for query: {question}")
-            response = ChatCompletion.create(
-                model="gpt-3.5-turbo", 
-                messages=[{"role": "user", "content": question}]
+            # Step 2: Call OpenAI GPT-3.5-turbo if no preset response is found
+            logging.info(f"❌ No preset found. Falling back to GPT-3.5-turbo for query: {question}")
+            
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": question}]
             )
-            message = response['choices'][0]['message']['content']
+                logging.info(f"Response type: {type(response)}")
+                logging.info(f"Response structure: {dir(response)}")
+                logging.info(f"First choice type: {type(response.choices[0])}")
+                logging.info(f"Message type: {type(response.choices[0].message)}")
+    
+                message = response.choices[0].message.content
+            except Exception as e:
+                logging.error(f"❌ Error while calling GPT for {phone_number}: {str(e)}")
+                logging.error(f"Error type: {type(e)}")
+                message = (
+                    "We're currently experiencing issues processing your request. "
+                    "Please try again later or contact our admin for assistance: wa.me/60167177813"
+                )
         
     except Exception as e:
-        # Log any GPT API errors and send an error message to the user
-        logging.error(f"Error while handling GPT query for {phone_number}: {str(e)}")
+        logging.error(f"❌ Unexpected error while handling query for {phone_number}: {str(e)}")
         message = (
             "We're currently experiencing issues processing your request. "
             "Please try again later or contact our admin for assistance: wa.me/60167177813"
