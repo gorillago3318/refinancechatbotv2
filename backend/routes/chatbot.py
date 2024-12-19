@@ -18,6 +18,33 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 chatbot_bp = Blueprint('chatbot', __name__)
 
+# 🗂️ Load language files
+try:
+    with open('backend/routes/languages/en.json', 'r', encoding='utf-8') as f:
+        EN_MESSAGES = json.load(f)
+except Exception as e:
+    logging.error(f"❌ Error loading en.json file: {e}")
+    EN_MESSAGES = {}
+
+try:
+    with open('backend/routes/languages/ms.json', 'r', encoding='utf-8') as f:
+        MS_MESSAGES = json.load(f)
+except Exception as e:
+    logging.error(f"❌ Error loading ms.json file: {e}")
+    MS_MESSAGES = {}
+
+try:
+    with open('backend/routes/languages/zh.json', 'r', encoding='utf-8') as f:
+        ZH_MESSAGES = json.load(f)
+except Exception as e:
+    logging.error(f"❌ Error loading zh.json file: {e}")
+    ZH_MESSAGES = {}
+
+LANGUAGE_OPTIONS = {'en': EN_MESSAGES, 'ms': MS_MESSAGES, 'zh': ZH_MESSAGES}
+
+logging.info(f"🧐 LANGUAGE_OPTIONS keys: {list(LANGUAGE_OPTIONS.keys())}")
+logging.info(f"📄 ENGLISH MESSAGES: {list(EN_MESSAGES.keys())}")
+
 # User Data Storage
 USER_STATE = {}
 
