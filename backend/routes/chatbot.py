@@ -135,6 +135,36 @@ def process_message():
         send_whatsapp_message(phone_number, "An unexpected error occurred. Please try again or contact support.")
         return jsonify({"status": "error"}), 500
 
+def get_message(key, language_code):
+    """Retrieve a message from the appropriate language file."""
+    try:
+        # Check if key is part of STEP_CONFIG to get the appropriate message
+        if key in STEP_CONFIG:
+            step_key = STEP_CONFIG[key]['message']
+        else:
+            # If the key is not a step, use it as-is
+            step_key = key
+
+        logging.debug(f"🔍 Trying to get message for key: '{step_key}' in language: '{language_code}'")
+
+        # Get the available keys from the selected language file
+        if language_code in LANGUAGE_OPTIONS:
+            available_keys = list(LANGUAGE_OPTIONS[language_code].keys())
+            logging.debug(f"📄 Available keys in '{language_code}' file: {available_keys}")
+        else:
+            logging.error(f"❌ Language '{language_code}' is not found in LANGUAGE_OPTIONS.")
+            return 'Message not found'
+
+        # Get the message from the language file
+        message = LANGUAGE_OPTIONS.get(language_code, {}).get(step_key, 'Message not found')
+        if message == 'Message not found':
+            logging.error(f"❌ Message key '{step_key}' not found in language file for {language_code}. Available keys: {available_keys if 'available_keys' in locals() else 'No keys loaded'}")
+    except Exception as e:
+        logging.error(f"❌ Error while getting message key '{key}' for language '{language_code}': {e}")
+        message = 'Message not found'
+    
+    return message
+
 def process_user_input(current_step, user_data, message_body, language_code):
     if current_step == 'get_name':
         user_data['name'] = message_body.strip().title()
