@@ -150,63 +150,111 @@ def get_message(key, language_code):
 @chatbot_bp.route('/process_message', methods=['POST'])
 def process_message():
     try:
+        # Parse incoming request
         data = request.get_json()
         logging.debug(f"Full incoming request: {data}")
-        phone_number = data['entry'][0]['changes'][0]['value']['contacts'][0]['wa_id']
-        message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip().lower()
-        
+
+        # Extract phone number and message body
+        try:
+            phone_number = data['entry'][0]['changes'][0]['value']['contacts'][0]['wa_id']
+            message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip().lower()
+        except (KeyError, IndexError, AttributeError) as e:
+            logging.error(f"Error extracting phone_number or message_body: {e}")
+            return jsonify({"status": "error", "message": "Invalid request format"}), 400
+
+        logging.info(f"Incoming message from {phone_number}: {message_body}")
+
+        # Handle 'restart' command to reset the state
         if message_body == 'restart':
-            # Only reset if not in query mode
-            if not USER_STATE.get(phone_number, {}).get('mode') == 'query':
-                USER_STATE[phone_number] = {'current_step': 'choose_language'}
-                message = get_message('choose_language', 'en')
-                logging.info(f"Sending language selection message to {phone_number}: {message}")
-                send_whatsapp_message(phone_number, message)
-                return jsonify({"status": "success"}), 200
+            USER_STATE[phone_number] = {'current_step': 'choose_language', 'mode': 'active', 'language_code': None}
+            message = get_message('choose_language', 'en')
+            send_whatsapp_message(phone_number, message)
+            return jsonify({"status": "success"}), 200
 
+        # Initialize user state if phone number is not in USER_STATE
         if phone_number not in USER_STATE:
-            USER_STATE[phone_number] = {'current_step': 'choose_language'}
+            USER_STATE[phone_number] = {
+                'current_step': 'choose_language',
+                'mode': 'active',
+                'language_code': None,
+                'name': None,
+                'age': None,
+                'original_loan_amount': None,
+                'original_loan_tenure': None,
+                'current_repayment': None,
+                'interest_rate': None,
+                'remaining_tenure': None,
+            }
 
+        # Get user data and current step
         user_data = USER_STATE[phone_number]
         current_step = user_data.get('current_step', 'choose_language')
-        
+
+        logging.info(f"Current step for {phone_number}: {current_step}")
+        logging.info(f"User data for {phone_number}: {user_data}")
+
+        # If user is in query mode, handle GPT queries
         if user_data.get('mode') == 'query':
             handle_gpt_query(message_body, user_data, phone_number)
             return jsonify({"status": "success"}), 200
 
-        logging.info(f"Current step for {phone_number}: {current_step}")
-        logging.info(f"User data for {phone_number}: {user_data}")
-        
-        if current_step == 'choose_language' and message_body in ['1', '2', '3']:
-            user_data['language_code'] = ['en', 'ms', 'zh'][int(message_body) - 1]
-            logging.info(f"User selected language: {user_data['language_code']}")
-            user_data['current_step'] = STEP_CONFIG['choose_language']['next_step']
+        # Handle language selection step
+        if current_step == 'choose_language':
+            if message_body in ['1', '2', '3']:
+                user_data['language_code'] = ['en', 'ms', 'zh'][int(message_body) - 1]
+                user_data['current_step'] = STEP_CONFIG['choose_language']['next_step']
+            else:
+                message = get_message('choose_language', 'en')
+                logging.info(f"Invalid language selection. Resending language options to {phone_number}.")
+                send_whatsapp_message(phone_number, message)
+                return jsonify({"status": "failed"}), 400
 
+        # Get the step configuration for the current step
         step_info = STEP_CONFIG.get(current_step)
-        
+        if not step_info:
+            logging.error(f"Step '{current_step}' not found in STEP_CONFIG.")
+            send_whatsapp_message(phone_number, "An error occurred. Please try again later.")
+            return jsonify({"status": "error"}), 500
+
+        # Validate the user's input for the current step
         if not step_info['validator'](message_body, user_data):
             message = get_message(current_step, user_data.get('language_code', 'en'))
-            logging.info(f"Validation failed for step '{current_step}' with message body '{message_body}'. Sending message: {message}")
+            logging.info(f"Validation failed for step '{current_step}' with message '{message_body}'. Sending message: {message}")
             send_whatsapp_message(phone_number, message)
             return jsonify({"status": "failed"}), 400
 
+        # Process user input and update the state
         process_user_input(current_step, user_data, message_body, user_data.get('language_code', 'en'))
-        user_data['current_step'] = step_info['next_step']
+        user_data['current_step'] = step_info.get('next_step')
 
+        # Check if the current step is 'process_completion'
         if user_data['current_step'] == 'process_completion':
             logging.info(f"Handling process completion for {phone_number}")
             return handle_process_completion(phone_number, user_data)
 
+        # Get the message for the next step
         message = get_message(user_data['current_step'], user_data.get('language_code', 'en'))
+        if not message or message == 'Message not found':
+            logging.error(f"Message for step '{user_data['current_step']}' not found in language file.")
+            send_whatsapp_message(phone_number, "We encountered an issue processing your request. Please try again later.")
+            return jsonify({"status": "error"}), 500
+
         logging.info(f"Sending next step message to {phone_number}: {message}")
         send_whatsapp_message(phone_number, message)
+        
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
-        logging.error(f"Error in process_message: {e}")
+        logging.error(f"Unexpected error in process_message: {e}")
+        
+        # Safely access user_data even if the phone number is not found
+        user_data = USER_STATE.get(phone_number, {})
+        
         if user_data.get('mode') == 'query':
-         handle_gpt_query(message_body, user_data, phone_number)
-         return jsonify({"status": "success"}), 200
+            handle_gpt_query(message_body, user_data, phone_number)
+            return jsonify({"status": "success"}), 200
+        
+        send_whatsapp_message(phone_number, "An unexpected error occurred. Please try again or contact support.")
         return jsonify({"status": "error"}), 500
 
 def handle_process_completion(phone_number, user_data):
