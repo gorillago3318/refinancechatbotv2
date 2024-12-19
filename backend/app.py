@@ -15,21 +15,21 @@ logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
 def create_app():
-    def create_app():
-        app = Flask(__name__)
+    """Create and configure the Flask app."""
+    app = Flask(__name__)  # Initialize the Flask app first
 
     # Setup database config
     database_url = os.getenv('DATABASE_URL', 'sqlite:///local.db')
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url  # Use the initialized app
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    # Initialize database and migrate
-    db.init_app(app)  # ✅ Make sure this line exists
-    migrate.init_app(app, db)  # ✅ Make sure this line exists
+    # Initialize database and migration tools
+    db.init_app(app)
+    migrate.init_app(app, db)
 
-    # Register all blueprints
+    # Register routes (blueprints)
     register_routes(app)
 
     return app
