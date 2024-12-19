@@ -96,6 +96,35 @@ STEP_CONFIG = {
     }
 }
 
+def get_message(key, language_code):
+    try:
+        step_key = key  # ✅ Initialize step_key to avoid "not defined" errors
+        
+        # Check for valid language
+        if not language_code:  
+            logging.warning(f"❌ Language '{language_code}' is not found. Defaulting to 'en'.")
+            language_code = 'en'
+        
+        if language_code not in LANGUAGE_OPTIONS:
+            logging.error(f"Language '{language_code}' is not found in LANGUAGE_OPTIONS. Defaulting to 'en'.")
+            language_code = 'en'
+        
+        # Check if the key is part of step config
+        if key in STEP_CONFIG:
+            step_key = STEP_CONFIG[key]['message']
+
+        logging.debug(f"🔍 Searching for message with key: '{step_key}' in language: '{language_code}'")
+
+        # Get the message
+        message = LANGUAGE_OPTIONS.get(language_code, {}).get(step_key, 'Message not found')
+        
+        if message == 'Message not found':
+            logging.error(f"❌ Missing message for key: '{step_key}' in {language_code} file.")
+    except Exception as e:
+        logging.error(f"❌ Error in get_message for key '{key}' with language '{language_code}': {e}")
+        message = 'Message not found'
+
+    return message
 
 @chatbot_bp.route('/process_message', methods=['POST'])
 def process_message():
@@ -180,25 +209,6 @@ def process_message():
         logging.error(f"❌ Unexpected error in process_message: {e}", exc_info=True)
         send_whatsapp_message(phone_number, "An unexpected error occurred. Please try again or contact support.")
         return jsonify({"status": "error"}), 500
-
-def get_message(key, language_code):
-    try:
-        if not language_code:  
-            logging.warning(f"❌ Language '{language_code}' is not found. Defaulting to 'en'.")
-            language_code = 'en'  # ✅ Default to 'en' if language_code is missing
-            
-        if language_code not in LANGUAGE_OPTIONS:
-            logging.error(f"Language '{language_code}' is not found in LANGUAGE_OPTIONS. Defaulting to 'en'.")
-            language_code = 'en'
-        
-        message = LANGUAGE_OPTIONS.get(language_code, {}).get(key, 'Message not found')
-        
-        if message == 'Message not found':
-            logging.error(f"❌ Missing message for key: {step_key} in {language_code} file.")
-    except Exception as e:
-        logging.error(f"❌ Error in get_message: {e}")
-        message = 'Message not found'
-    return message
 
 def process_user_input(current_step, user_data, message_body, language_code):
     if current_step == 'get_name':
