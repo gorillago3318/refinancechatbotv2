@@ -115,18 +115,20 @@ def process_message():
         
         if message_body == 'restart':
             logging.info(f"🔄 User requested a restart. Resetting state for {phone_number}.")
-            USER_STATE[phone_number] = {'current_step': 'choose_language', 'mode': 'active', 'language_code': None}
-            message = get_message('choose_language', 'en')
-            send_whatsapp_message(phone_number, message)
-            return jsonify({"status": "success"}), 200
-
-        # Add this line where user_data is initialized
-        if phone_number not in USER_STATE:
-            logging.info(f"🆕 New user detected. Initializing USER_STATE for {phone_number}.")
             USER_STATE[phone_number] = {
                 'current_step': 'choose_language',
                 'mode': 'active',
-                'language_code': 'en',  # ✅ Default language to 'en'
+                'language_code': 'en',  # ✅ Set to 'en' by default
+            }
+            message = get_message('choose_language', 'en')  # ✅ Ensuring the language is valid
+            send_whatsapp_message(phone_number, message)
+            return jsonify({"status": "success"}), 200
+
+        if phone_number not in USER_STATE:
+            USER_STATE[phone_number] = {
+                'current_step': 'choose_language',
+                'mode': 'active',
+                'language_code': 'en',  # ✅ Default to 'en'
                 'name': None,
                 'age': None,
                 'original_loan_amount': None,
@@ -138,6 +140,21 @@ def process_message():
 
         user_data = USER_STATE[phone_number]
         current_step = user_data.get('current_step', 'choose_language')
+
+        # 🟢 Handle the 'choose_language' step
+        if current_step == 'choose_language':
+            if message_body in ['1', '2', '3']:  # ✅ Check if user selected 1, 2, or 3
+                user_data['language_code'] = ['en', 'ms', 'zh'][int(message_body) - 1]  # ✅ Set language code
+                user_data['current_step'] = STEP_CONFIG['choose_language']['next_step']  # ✅ Move to the next step
+                message = get_message(user_data['current_step'], user_data['language_code'])  # Get message for the next step
+                logging.info(f"🌐 Language set to '{user_data['language_code']}' for {phone_number}. Next step: {user_data['current_step']}")
+                send_whatsapp_message(phone_number, message)  # Send the next step message
+                return jsonify({"status": "success"}), 200
+            else:
+                message = get_message('choose_language', 'en')  # Resend the language selection message
+                logging.warning(f"⚠️ Invalid language selection for {phone_number}: '{message_body}'")
+                send_whatsapp_message(phone_number, message)
+                return jsonify({"status": "failed"}), 400
 
         step_info = STEP_CONFIG.get(current_step)
         if not step_info:
@@ -166,33 +183,21 @@ def process_message():
 
 def get_message(key, language_code):
     try:
-        if not language_code:  # If language_code is None or empty
+        if not language_code:  
             logging.warning(f"❌ Language '{language_code}' is not found. Defaulting to 'en'.")
-            language_code = 'en'  # Fallback to 'en'
+            language_code = 'en'  # ✅ Default to 'en' if language_code is missing
             
-        # First, check if the key is part of STEP_CONFIG
-        if key in STEP_CONFIG:
-            step_key = STEP_CONFIG[key]['message']
-        else:
-            step_key = key
-
-        logging.debug(f"Trying to get message for key: '{step_key}' in language: '{language_code}'")
+        if language_code not in LANGUAGE_OPTIONS:
+            logging.error(f"Language '{language_code}' is not found in LANGUAGE_OPTIONS. Defaulting to 'en'.")
+            language_code = 'en'
         
-        if language_code in LANGUAGE_OPTIONS:
-            available_keys = list(LANGUAGE_OPTIONS[language_code].keys())
-            logging.debug(f"Available keys in '{language_code}' file: {available_keys}")
-        else:
-            logging.error(f"Language '{language_code}' is not found in LANGUAGE_OPTIONS.")
-            language_code = 'en'  # Fallback to 'en'
-        
-        message = LANGUAGE_OPTIONS.get(language_code, {}).get(step_key, 'Message not found')
+        message = LANGUAGE_OPTIONS.get(language_code, {}).get(key, 'Message not found')
         
         if message == 'Message not found':
-            logging.error(f"Message key '{step_key}' not found in language file for {language_code}.")
+            logging.error(f"❌ Missing message for key: {step_key} in {language_code} file.")
     except Exception as e:
-        logging.error(f"Error while getting message key '{key}' for language '{language_code}': {e}")
+        logging.error(f"❌ Error in get_message: {e}")
         message = 'Message not found'
-    
     return message
 
 def process_user_input(current_step, user_data, message_body, language_code):
