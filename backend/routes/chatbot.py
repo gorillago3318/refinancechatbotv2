@@ -12,11 +12,12 @@ from backend.extensions import db
 from openai import OpenAI
 from backend.utils.presets import get_preset_response  # Assuming this imports a method to get responses from presets
 
+logging.basicConfig(level=logging.DEBUG)
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 chatbot_bp = Blueprint('chatbot', __name__)
 
-logging.basicConfig(level=logging.DEBUG)
 
 # User Data Storage
 USER_STATE = {}
@@ -50,9 +51,9 @@ LANGUAGE_OPTIONS = {'en': EN_MESSAGES, 'ms': MS_MESSAGES, 'zh': ZH_MESSAGES}
 
 STEP_CONFIG = {
     'choose_language': {
-        'message': "choose_language_message",
-        'next_step': 'get_name',
-        'validator': lambda x, user_data=None: x in ['1', '2', '3']
+    'message': "choose_language_message",
+    'next_step': 'get_name',
+    'validator': lambda x, user_data=None: ''.join(filter(str.isdigit, x)) in ['1', '2', '3']
     },
     'get_name': {
         'message': 'name_message',
@@ -152,7 +153,7 @@ def get_message(key, language_code):
 @chatbot_bp.route('/process_message', methods=['POST'])
 def process_message():
     try:
-        # Parse incoming request
+        # 📩 Parse incoming request
         data = request.get_json()
         logging.debug(f"📩 Full incoming request: {json.dumps(data, indent=2)}")
 
@@ -160,12 +161,14 @@ def process_message():
         try:
             phone_number = data['entry'][0]['changes'][0]['value']['contacts'][0]['wa_id']
             message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip().lower()
-            logging.debug(f"☎️ Extracted phone number: {phone_number} | 📨 Message body: {message_body}")
+            logging.debug(f"☎️ Extracted phone number: {phone_number} | 📨 Message body: '{message_body}'")
         except (KeyError, IndexError, AttributeError) as e:
             logging.error(f"❌ Error extracting phone_number or message_body: {e}", exc_info=True)
             return jsonify({"status": "error", "message": "Invalid request format"}), 400
 
-        logging.info(f"🛠 Incoming message from {phone_number}: '{message_body}'")
+        # Clean user input (keep only numbers)
+        message_body_cleaned = ''.join(filter(str.isdigit, message_body))  
+        logging.debug(f"🧐 Cleaned user input for language selection: '{message_body_cleaned}'")
 
         # Handle 'restart' command to reset the state
         if message_body == 'restart':
@@ -207,13 +210,13 @@ def process_message():
 
         # Handle language selection step
         if current_step == 'choose_language':
-            if message_body in ['1', '2', '3']:
-                user_data['language_code'] = ['en', 'ms', 'zh'][int(message_body) - 1]
+            if message_body_cleaned in ['1', '2', '3']:
+                user_data['language_code'] = ['en', 'ms', 'zh'][int(message_body_cleaned) - 1]
                 user_data['current_step'] = STEP_CONFIG['choose_language']['next_step']
                 logging.info(f"🌐 Language set to '{user_data['language_code']}' for {phone_number}. Moving to next step: {user_data['current_step']}")
             else:
                 message = get_message('choose_language', 'en')
-                logging.warning(f"⚠️ Invalid language selection. Resending language options to {phone_number}.")
+                logging.warning(f"⚠️ Invalid language selection. User input: '{message_body}'. Resending language options to {phone_number}.")
                 send_whatsapp_message(phone_number, message)
                 return jsonify({"status": "failed"}), 400
 
@@ -266,6 +269,7 @@ def process_message():
         
         send_whatsapp_message(phone_number, "An unexpected error occurred. Please try again or contact support.")
         return jsonify({"status": "error"}), 500
+
 
 def handle_process_completion(phone_number, user_data):
     calculation_results = calculate_refinance_savings(user_data['original_loan_amount'], user_data['original_loan_tenure'], user_data['current_repayment'])
