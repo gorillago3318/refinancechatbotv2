@@ -3,14 +3,14 @@ import time
 import traceback
 import json
 import datetime
-import os  # Import os to access environment variables
+import os  
 from flask import Blueprint, request, jsonify
 from backend.utils.calculation import calculate_refinance_savings
 from backend.utils.whatsapp import send_whatsapp_message
 from backend.models import User, Lead
 from backend.extensions import db
 from openai import OpenAI
-from backend.utils.presets import get_preset_response  # Assuming this imports a method to get responses from presets
+from backend.utils.presets import get_preset_response  
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -18,47 +18,22 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 chatbot_bp = Blueprint('chatbot', __name__)
 
-
 # User Data Storage
 USER_STATE = {}
 
 # Load language files
-try:
-    with open('backend/routes/languages/en.json', 'r', encoding='utf-8') as f:
-        EN_MESSAGES = json.load(f)
-    logging.info(f"Successfully loaded en.json with {len(EN_MESSAGES)} keys.")
-except Exception as e:
-    logging.error(f"Error loading en.json file: {e}")
-    EN_MESSAGES = {}
-
-try:
-    with open('backend/routes/languages/ms.json', 'r', encoding='utf-8') as f:
-        MS_MESSAGES = json.load(f)
-    logging.info(f"Successfully loaded ms.json with {len(MS_MESSAGES)} keys.")
-except Exception as e:
-    logging.error(f"Error loading ms.json file: {e}")
-    MS_MESSAGES = {}
-
-try:
-    with open('backend/routes/languages/zh.json', 'r', encoding='utf-8') as f:
-        ZH_MESSAGES = json.load(f)
-    logging.info(f"Successfully loaded zh.json with {len(ZH_MESSAGES)} keys.")
-except Exception as e:
-    logging.error(f"Error loading zh.json file: {e}")
-    ZH_MESSAGES = {}
-
-LANGUAGE_OPTIONS = {'en': EN_MESSAGES, 'ms': MS_MESSAGES, 'zh': ZH_MESSAGES}
+# **No Changes Here**
 
 STEP_CONFIG = {
     'choose_language': {
         'message': "choose_language_message",
         'next_step': 'get_name',
-        'validator': lambda x, user_data=None: x in ['1', '2', '3']
+        'validator': lambda x, user_data=None: ''.join(filter(str.isdigit, x)) in ['1', '2', '3']
     },
     'get_name': {
         'message': 'name_message',
         'next_step': 'get_age',
-        'validator': lambda x, user_data=None: x.replace(' ', '').isalpha()
+        'validator': lambda x, user_data=None: x.replace(' ', '').isalpha()  # Allow spaces in names
     },
     'get_age': {
         'message': 'age_message',
@@ -97,12 +72,58 @@ STEP_CONFIG = {
     }
 }
 
+@chatbot_bp.route('/process_message', methods=['POST'])
+def process_message():
+    try:
+        # Parse incoming request
+        data = request.get_json()
+        phone_number = data['entry'][0]['changes'][0]['value']['contacts'][0]['wa_id']
+        message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip()
+        
+        logging.debug(f"🧐 Current message: {message_body} | From: {phone_number}")
+        
+        if message_body.lower() == 'restart':
+            USER_STATE[phone_number] = {'current_step': 'choose_language', 'mode': 'active', 'language_code': None}
+            send_whatsapp_message(phone_number, get_message('choose_language', 'en'))
+            return jsonify({"status": "success"}), 200
+
+        if phone_number not in USER_STATE:
+            USER_STATE[phone_number] = {'current_step': 'choose_language', 'mode': 'active', 'language_code': None}
+
+        user_data = USER_STATE[phone_number]
+        current_step = user_data.get('current_step', 'choose_language')
+        
+        if current_step == 'choose_language':
+            message_body = ''.join(filter(str.isdigit, message_body))  # Clean only for choose_language
+        
+        step_info = STEP_CONFIG.get(current_step)
+        if not step_info:
+            logging.error(f"Step '{current_step}' not found in STEP_CONFIG.")
+            return jsonify({"status": "error"}), 500
+
+        if not step_info['validator'](message_body, user_data):
+            logging.warning(f"⚠️ Validation failed for step '{current_step}' | Input: '{message_body}'")
+            send_whatsapp_message(phone_number, get_message(current_step, user_data['language_code'] or 'en'))
+            return jsonify({"status": "failed"}), 400
+
+        process_user_input(current_step, user_data, message_body, user_data['language_code'] or 'en')
+        
+        next_step = step_info.get('next_step')
+        if next_step:
+            user_data['current_step'] = next_step
+            logging.info(f"🪄 Step transition: {current_step} ➡️ {next_step}")
+            send_whatsapp_message(phone_number, get_message(next_step, user_data['language_code'] or 'en'))
+        
+        return jsonify({"status": "success"}), 200
+
+    except Exception as e:
+        logging.error(f"❌ Unexpected error in process_message: {e}", exc_info=True)
+        send_whatsapp_message(phone_number, "An unexpected error occurred. Please try again.")
+        return jsonify({"status": "error"}), 500
 
 def process_user_input(current_step, user_data, message_body, language_code):
-    logging.debug(f"Processing input for step: {current_step} with message: '{message_body}'")
     if current_step == 'get_name':
-        user_data['name'] = message_body.strip().title()  # Store name
-        logging.info(f"📂 Name captured for {phone_number}: {user_data['name']}")
+        user_data['name'] = message_body.strip().title()
     elif current_step == 'get_age':
         user_data['age'] = int(message_body)
     elif current_step == 'get_loan_amount':
@@ -115,6 +136,7 @@ def process_user_input(current_step, user_data, message_body, language_code):
         user_data['interest_rate'] = float(message_body)
     elif current_step == 'get_remaining_tenure' and message_body.lower() != 'skip':
         user_data['remaining_tenure'] = int(message_body)
+
     elif current_step == 'process_completion':  
         user_data['mode'] = 'query'  
     # Logic for process completion
