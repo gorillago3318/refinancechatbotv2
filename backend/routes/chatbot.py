@@ -120,11 +120,13 @@ def process_message():
             send_whatsapp_message(phone_number, message)
             return jsonify({"status": "success"}), 200
 
+        # Add this line where user_data is initialized
         if phone_number not in USER_STATE:
+            logging.info(f"🆕 New user detected. Initializing USER_STATE for {phone_number}.")
             USER_STATE[phone_number] = {
                 'current_step': 'choose_language',
                 'mode': 'active',
-                'language_code': None,
+                'language_code': 'en',  # ✅ Default language to 'en'
                 'name': None,
                 'age': None,
                 'original_loan_amount': None,
@@ -163,31 +165,32 @@ def process_message():
         return jsonify({"status": "error"}), 500
 
 def get_message(key, language_code):
-    """Retrieve a message from the appropriate language file."""
     try:
-        # Check if key is part of STEP_CONFIG to get the appropriate message
+        if not language_code:  # If language_code is None or empty
+            logging.warning(f"❌ Language '{language_code}' is not found. Defaulting to 'en'.")
+            language_code = 'en'  # Fallback to 'en'
+            
+        # First, check if the key is part of STEP_CONFIG
         if key in STEP_CONFIG:
             step_key = STEP_CONFIG[key]['message']
         else:
-            # If the key is not a step, use it as-is
             step_key = key
 
-        logging.debug(f"🔍 Trying to get message for key: '{step_key}' in language: '{language_code}'")
-
-        # Get the available keys from the selected language file
+        logging.debug(f"Trying to get message for key: '{step_key}' in language: '{language_code}'")
+        
         if language_code in LANGUAGE_OPTIONS:
             available_keys = list(LANGUAGE_OPTIONS[language_code].keys())
-            logging.debug(f"📄 Available keys in '{language_code}' file: {available_keys}")
+            logging.debug(f"Available keys in '{language_code}' file: {available_keys}")
         else:
-            logging.error(f"❌ Language '{language_code}' is not found in LANGUAGE_OPTIONS.")
-            return 'Message not found'
-
-        # Get the message from the language file
+            logging.error(f"Language '{language_code}' is not found in LANGUAGE_OPTIONS.")
+            language_code = 'en'  # Fallback to 'en'
+        
         message = LANGUAGE_OPTIONS.get(language_code, {}).get(step_key, 'Message not found')
+        
         if message == 'Message not found':
-            logging.error(f"❌ Message key '{step_key}' not found in language file for {language_code}. Available keys: {available_keys if 'available_keys' in locals() else 'No keys loaded'}")
+            logging.error(f"Message key '{step_key}' not found in language file for {language_code}.")
     except Exception as e:
-        logging.error(f"❌ Error while getting message key '{key}' for language '{language_code}': {e}")
+        logging.error(f"Error while getting message key '{key}' for language '{language_code}': {e}")
         message = 'Message not found'
     
     return message
