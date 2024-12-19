@@ -6,6 +6,7 @@ from backend.extensions import db, migrate  # ✅ Correct import for extensions
 from backend.models import User, Lead, ChatLog, BankRate  # ✅ Correct import for models
 from backend.routes.chatbot import chatbot_bp  # ✅ Correct import for chatbot blueprint
 from backend.utils.whatsapp import send_whatsapp_message  # ✅ Import WhatsApp message function
+from backend.config import configurations
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -14,11 +15,14 @@ logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
 def create_app():
-    """Create and configure the Flask app."""
-    app = Flask(__name__)
+    def create_app():
+        app = Flask(__name__)
 
     # Setup database config
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///local.db')
+    database_url = os.getenv('DATABASE_URL', 'sqlite:///local.db')
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Initialize database and migrate
@@ -29,6 +33,7 @@ def create_app():
     register_routes(app)
 
     return app
+
 
 def register_routes(app):
     """Register all routes for the application."""

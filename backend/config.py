@@ -12,27 +12,28 @@ class Config:
         logging.warning("SECRET_KEY is not set in .env. Using the default, which is not safe for production.")
 
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///local.db')
-
-if SQLALCHEMY_DATABASE_URI.startswith('postgres://'):
-    SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('postgres://', 'postgresql://', 1)
     
-    SQLALCHEMY_TRACK_MODIFICATIONS = False  # Disable modification tracking for better performance
-    DEBUG = os.getenv('DEBUG', 'True').lower() in ['true', '1', 'yes']  # Convert environment variable to boolean
+    # Fix PostgreSQL URL for SQLAlchemy compatibility
+    if SQLALCHEMY_DATABASE_URI.startswith('postgres://'):
+        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace('postgres://', 'postgresql://', 1)
+
+    SQLALCHEMY_TRACK_MODIFICATIONS = False  # Disable modification tracking
+    DEBUG = os.getenv('DEBUG', 'False').lower() in ['true', '1', 'yes']  # Convert DEBUG to boolean
 
 class DevelopmentConfig(Config):
     """Configuration for development environment."""
-    DEBUG = True  # Enable debug mode for development
-    ENV = 'development'  # Set the Flask environment to development
+    DEBUG = True
+    ENV = 'development'
 
 class ProductionConfig(Config):
     """Configuration for production environment."""
-    DEBUG = False  # Disable debug mode for production
-    ENV = 'production'  # Set the Flask environment to production
+    DEBUG = False
+    ENV = 'production'
 
 class TestingConfig(Config):
     """Configuration for testing environment."""
-    TESTING = True  # Enable testing mode
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'  # In-memory database for tests
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
 
 # Dictionary to select configuration by environment
 configurations = {
