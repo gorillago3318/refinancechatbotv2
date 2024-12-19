@@ -51,9 +51,9 @@ LANGUAGE_OPTIONS = {'en': EN_MESSAGES, 'ms': MS_MESSAGES, 'zh': ZH_MESSAGES}
 
 STEP_CONFIG = {
     'choose_language': {
-    'message': "choose_language_message",
-    'next_step': 'get_name',
-    'validator': lambda x, user_data=None: ''.join(filter(str.isdigit, x)) in ['1', '2', '3']
+        'message': "choose_language_message",
+        'next_step': 'get_name',
+        'validator': lambda x, user_data=None: x in ['1', '2', '3']
     },
     'get_name': {
         'message': 'name_message',
@@ -99,9 +99,10 @@ STEP_CONFIG = {
 
 
 def process_user_input(current_step, user_data, message_body, language_code):
-    logging.debug(f"Processing input for step: {current_step} with message: {message_body}")
+    logging.debug(f"Processing input for step: {current_step} with message: '{message_body}'")
     if current_step == 'get_name':
-        user_data['name'] = message_body.strip().title()
+        user_data['name'] = message_body.strip().title()  # Store name
+        logging.info(f"📂 Name captured for {phone_number}: {user_data['name']}")
     elif current_step == 'get_age':
         user_data['age'] = int(message_body)
     elif current_step == 'get_loan_amount':
@@ -115,6 +116,7 @@ def process_user_input(current_step, user_data, message_body, language_code):
     elif current_step == 'get_remaining_tenure' and message_body.lower() != 'skip':
         user_data['remaining_tenure'] = int(message_body)
     elif current_step == 'process_completion':  
+        user_data['mode'] = 'query'  
     # Logic for process completion
         logging.info(f"Processing completion for phone_number: {user_data.get('phone_number')}")
         user_data['mode'] = 'query'
@@ -210,6 +212,7 @@ def process_message():
 
         # Handle language selection step
         if current_step == 'choose_language':
+            message_body_cleaned = ''.join(filter(str.isdigit, message_body))  # Clean only during language selection
             if message_body_cleaned in ['1', '2', '3']:
                 user_data['language_code'] = ['en', 'ms', 'zh'][int(message_body_cleaned) - 1]
                 user_data['current_step'] = STEP_CONFIG['choose_language']['next_step']
