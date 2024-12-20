@@ -1,0 +1,7 @@
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+gunicorn
+python-dotenv
+psycopg2-binary==2.9.10
+requests
