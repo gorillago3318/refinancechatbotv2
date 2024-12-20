@@ -1,4 +1,4 @@
-from datetime import datetime  # ✅ Correct import
+from datetime import datetime
 from backend.extensions import db  # ✅ Import db first
 from sqlalchemy import Column, Integer, String, DateTime, Float
 
@@ -40,9 +40,13 @@ class Lead(db.Model):
     property_reference = db.Column(db.String(50), nullable=True, unique=True)  
     original_loan_amount = db.Column(db.Float, nullable=False)  
     original_loan_tenure = db.Column(db.Integer, nullable=False)  
-    current_repayment = db.Column(db.Float, nullable=False)  
+    current_repayment = db.Column(db.Float, nullable=False)
+
+    # Add the new column here:
+    new_repayment = db.Column(db.Float, nullable=True)  # Or False if it's always needed
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)  
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)  
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class ChatLog(db.Model):
     __tablename__ = 'chat_logs'

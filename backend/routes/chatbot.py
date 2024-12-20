@@ -353,27 +353,22 @@ def prepare_summary_messages(user_data, calculation_results, language_code):
     return [summary_message_1, summary_message_2]
 
 def update_database(phone_number, user_data, calculation_results):
-    """ Updates the database with the user's input data and calculation results. """
     try:
-        # Step 1: Check if the user exists in the User table
         user = User.query.filter_by(wa_id=phone_number).first()
-        
-        # Step 2: If the user does not exist, create a new user
         if not user:
             user = User(
                 wa_id=phone_number,
                 phone_number=phone_number,
-                name=getattr(user_data, 'name', 'Unnamed User'),  # Use getattr() to avoid errors if None
-                age=getattr(user_data, 'age', 0)  # Default to 0 if age is None
+                name=getattr(user_data, 'name', 'Unnamed User'),
+                age=getattr(user_data, 'age', 0)
             )
             db.session.add(user)
-            db.session.flush()  # Flush to get the user.id for the Lead
+            db.session.flush()  # To get user.id
 
-        # Step 3: Create a new lead using user and calculation results
         lead = Lead(
             user_id=user.id,
             phone_number=user.phone_number,
-            name=getattr(user_data, 'name', 'Unnamed Lead'),  # Use getattr() to avoid errors
+            name=getattr(user_data, 'name', 'Unnamed Lead'),
             original_loan_amount=getattr(user_data, 'original_loan_amount', 0.0),
             original_loan_tenure=getattr(user_data, 'original_loan_tenure', 0),
             current_repayment=getattr(user_data, 'current_repayment', 0.0),
@@ -383,18 +378,14 @@ def update_database(phone_number, user_data, calculation_results):
             total_savings=calculation_results.get('lifetime_savings', 0.0),
             years_saved=calculation_results.get('years_saved', 0)
         )
+
         db.session.add(lead)
-        
-        # Step 4: Commit all changes to the database
         db.session.commit()
-        
         logging.info(f"✅ Database updated successfully for user {phone_number}")
 
     except Exception as e:
-        # Log the error and rollback the session to avoid partial commits
-        logging.error(f"❌ Error updating database for phone number {phone_number}: {str(e)}")
-        logging.error(f"Traceback: {traceback.format_exc()}")
-        db.session.rollback()  # Rollback in case of failure
+        logging.error(f"❌ Error updating database for {phone_number}: {str(e)}")
+        db.session.rollback()
 
 def send_new_lead_to_admin(phone_number, user_data):
     admin_number = os.getenv('ADMIN_PHONE_NUMBER')
