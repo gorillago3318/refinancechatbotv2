@@ -18,7 +18,13 @@ def create_app():
     app = Flask(__name__)
 
     # Setup database config
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///local.db')
+    database_url = os.getenv('DATABASE_URL', 'sqlite:///local.db')
+
+    # 🛠️ Fix Heroku's postgres URL if required (Heroku may still use 'postgres://')
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Initialize database and migrate
@@ -33,7 +39,6 @@ def create_app():
 def register_routes(app):
     """Register all routes for the application."""
     app.register_blueprint(chatbot_bp, url_prefix='/chatbot')  
-    
     @app.route('/webhook', methods=['GET', 'POST'])
     def webhook():
         if request.method == 'GET':
@@ -70,6 +75,7 @@ def register_routes(app):
                 logging.exception(f"❌ Error occurred while processing webhook: {e}")
                 return 'Internal Server Error', 500
 
+    # Print environment variables for debugging
     print("WHATSAPP_API_URL:", os.getenv('WHATSAPP_API_URL'))
     print("WHATSAPP_API_TOKEN:", os.getenv('WHATSAPP_API_TOKEN'))
     print("WHATSAPP_PHONE_NUMBER_ID:", os.getenv('WHATSAPP_PHONE_NUMBER_ID'))
