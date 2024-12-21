@@ -2,6 +2,7 @@ Flask
 Flask-SQLAlchemy
 Flask-Migrate
 gunicorn
+openai
 python-dotenv
 psycopg2-binary==2.9.10
 pytz
