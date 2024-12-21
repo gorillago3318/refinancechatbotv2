@@ -3,7 +3,7 @@ import logging
 from flask import Flask, request, current_app, jsonify  
 from dotenv import load_dotenv  
 from backend.extensions import db, migrate  
-from backend.models import User, Lead, ChatLog, BankRate  
+from backend.models import User, Lead, ChatLog, BankRate  # Correct capitalization
 from backend.routes.chatbot import chatbot_bp  
 from backend.utils.whatsapp import send_whatsapp_message  
 

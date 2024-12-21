@@ -7,11 +7,11 @@
     
     "loan_tenure_message": "📆 *Langkah 4: Masukkan Tempoh Pinjaman Perumahan Anda* \n\nSila masukkan *tempoh pinjaman perumahan asal* yang diluluskan oleh bank. (Biasanya 30 atau 35 tahun.) \n\n💡 *Contoh*: 30",
     
-    "interest_rate_message": "📈 *Langkah 5: Masukkan Kadar Faedah Pinjaman Perumahan Anda* \n\nJika anda tahu *kadar faedah semasa* pinjaman perumahan anda, sila masukkan (contoh: 3.85). \n\nAnda juga boleh taip *skip* jika anda tidak pasti. \n\n💡 *Contoh*: 4.25 atau *skip*",
+    "interest_rate_message": "📈 *Langkah 6: Masukkan Kadar Faedah Pinjaman Perumahan Anda* \n\nJika anda tahu *kadar faedah semasa* pinjaman perumahan anda, sila masukkan (contoh: 3.85). \n\nAnda juga boleh taip *skip* jika anda tidak pasti. \n\n💡 *Contoh*: 4.25 atau *skip*",
     
-    "remaining_tenure_message": "📅 *Langkah 6: Masukkan Baki Tempoh Pinjaman Perumahan* \n\nSila masukkan *baki tempoh pinjaman perumahan* anda dalam tahun. \n\n💡 *Nota*: Anda boleh taip *skip* jika anda tidak pasti nombor tepat. \n\n💡 *Contoh*: 15 atau *skip*",
+    "remaining_tenure_message": "📅 *Langkah 7: Masukkan Baki Tempoh Pinjaman Perumahan* \n\nSila masukkan *baki tempoh pinjaman perumahan* anda dalam tahun. \n\n💡 *Nota*: Anda boleh taip *skip* jika anda tidak pasti nombor tepat. \n\n💡 *Contoh*: 15 atau *skip*",
     
-    "repayment_message": "💳 *Langkah 7: Masukkan Bayaran Bulanan Pinjaman Perumahan Anda* \n\nSila masukkan *jumlah bayaran bulanan semasa* yang anda bayar untuk pinjaman perumahan anda. \n\n💡 *Contoh*: 2,500 (tidak perlu gunakan koma atau simbol khas — kami akan formatkannya untuk anda)",
+    "repayment_message": "💳 *Langkah 5: Masukkan Bayaran Bulanan Pinjaman Perumahan Anda* \n\nSila masukkan *jumlah bayaran bulanan semasa* yang anda bayar untuk pinjaman perumahan anda. \n\n💡 *Contoh*: 2,500 (tidak perlu gunakan koma atau simbol khas — kami akan formatkannya untuk anda)",
     
     "completion_message": "🎉 *Terima Kasih!* 🎉\n\nTerima kasih kerana memberikan maklumat anda. Kami kini sedang memproses permintaan anda. \n\n📊 Sila tunggu sebentar sementara kami mengira potensi penjimatan anda dan menghantar laporan terperinci kepada anda.",
     

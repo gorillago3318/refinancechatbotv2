@@ -1,4 +1,5 @@
 {
+    
     "name_message": "📝 *Step 1: Enter Your Name* \n\nPlease enter your *full name* as it appears on official documentation. \n\n💡 *Example*: John Doe",
     
     "age_message": "🎂 *Step 2: Enter Your Age* \n\nPlease enter your *age in years* (must be between *18 and 70*). \n\n💡 *Example*: 35",
@@ -7,15 +8,15 @@
     
     "loan_tenure_message": "📆 *Step 4: Enter Your Loan Tenure* \n\nPlease enter your *original loan tenure* approved by the bank. (This is normally 30 or 35 years.) \n\n💡 *Example*: 30",
     
-    "interest_rate_message": "📈 *Step 5: Enter Your Interest Rate* \n\nIf you know the *current interest rate* for your loan, please enter it (e.g., 3.85). \n\nYou can also type *skip* if you are unsure. \n\n💡 *Example*: 4.25 or *skip*",
+    "interest_rate_message": "📈 *Step 6: Enter Your Interest Rate* \n\nIf you know the *current interest rate* for your loan, please enter it (e.g., 3.85). \n\nYou can also type *skip* if you are unsure. \n\n💡 *Example*: 4.25 or *skip*",
     
-    "remaining_tenure_message": "📅 *Step 6: Enter the Remaining Tenure* \n\nPlease enter the *number of years remaining* for your loan. \n\n💡 *Note*: You can skip this if you don't know the exact number. Just type *skip*. \n\n💡 *Example*: 15 or *skip*",
+    "remaining_tenure_message": "📅 *Step 7: Enter the Remaining Tenure* \n\nPlease enter the *number of years remaining* for your loan. \n\n💡 *Note*: You can skip this if you don't know the exact number. Just type *skip*. \n\n💡 *Example*: 15 or *skip*",
     
-    "repayment_message": "💳 *Step 7: Enter Your Current Monthly Repayment* \n\nPlease enter the *current amount you pay each month* for your loan. \n\n💡 *Example*: 2500 (do not use commas or special symbols)",
+    "repayment_message": "💳 *Step 5: Enter Your Current Monthly Repayment* \n\nPlease enter the *current amount you pay each month* for your loan. \n\n💡 *Example*: 2500 (do not use commas or special symbols)",
     
     "completion_message": "🎉 *Thank You!* 🎉\n\nThank you for providing your details. We are now processing your request. \n\n📊 Please wait for a moment while we calculate your potential savings and send you a detailed report.",
     
-    "choose_language_message": "🌐 *Choose Your Preferred Language* \n\nPlease select your language by typing the corresponding number: \n\n1️⃣ *English* \n2️⃣ *Bahasa Malaysia* \n3️⃣ *中文 (Chinese)*",
+    "choose_language_message": "🎉 Welcome to FinZo AI — Your Smart Refinancing Assistant! 🤖\n\n💸 Discover Your Savings Potential – Instantly estimate how much you could save by refinancing your home loan.\n💡 Expert Guidance at Your Fingertips – Get quick answers to your refinancing and home loan questions (up to 15 inquiries).\n🔄 Simple Restart – Need to reset? Just type 'restart' anytime to start over.\n\n👉 Let’s get started! Please select your preferred language:\n\n🌐 Choose Language:\n1️⃣ English\n2️⃣ Bahasa Malaysia\n3️⃣ 中文 (Chinese)",
     
     "summary_title_1": "📊 *Refinance Savings Summary* 📊",
     
