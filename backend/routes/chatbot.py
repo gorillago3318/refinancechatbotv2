@@ -261,7 +261,8 @@ def process_message():
             db.session.add(user_data)
             db.session.commit()
             
-            message = get_message('choose_language_message', 'en')
+            # Send direct language prompt instead of welcome message
+            message = "🌐 Choose Language:\n1️⃣ English \n2️⃣ Bahasa Malaysia \n3️⃣ 中文 (Chinese)"
             send_whatsapp_message(phone_number, message)
             
             return jsonify({"status": "success"}), 200
@@ -277,7 +278,8 @@ def process_message():
             user_data.current_repayment = None
             db.session.commit()
 
-            message = get_message('choose_language_message', 'en')
+            # Send language selection prompt again
+            message = "🌐 Choose Language:\n1️⃣ English \n2️⃣ Bahasa Malaysia \n3️⃣ 中文 (Chinese)"
             send_whatsapp_message(phone_number, message)
             
             return jsonify({"status": "success"}), 200
