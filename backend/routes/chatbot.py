@@ -305,8 +305,8 @@ def process_message():
             send_whatsapp_message(phone_number, message)
             return jsonify({"status": "success"}), 200
 
-        # 🔥 Step 3: Handle 24-hour reminder
-        last_active = user_data.updated_at
+        # 🔥 Step 3: Handle 24-hour reminder with timezone fix
+        last_active = user_data.updated_at.replace(tzinfo=MYT)
         if (datetime.now(MYT) - last_active).total_seconds() > 86400:  # 24 hours
             reminder_message = (
                 "Welcome back! If you'd like to recalculate your savings, please type 'restart'. "
@@ -358,8 +358,7 @@ def process_message():
         logging.error(f"Traceback: {traceback.format_exc()}")
         db.session.rollback()
         return jsonify({"status": "error"}), 500
-
-
+    
 def handle_process_completion(phone_number):
     """ Handles the completion of the process and calculates refinance savings. """
     try:
