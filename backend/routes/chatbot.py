@@ -280,7 +280,7 @@ def process_message():
     try:
         data = request.get_json()
         phone_number = data['entry'][0]['changes'][0]['value']['contacts'][0]['wa_id']
-        message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip().lower()
+        message_body = data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'].strip()
 
         logging.info(f"💎 Incoming message from {phone_number}: {message_body}")
 
@@ -305,7 +305,7 @@ def process_message():
             return jsonify({"status": "success"}), 200
 
         # 🔥 Step 3: Handle "restart" command (reset the entire flow)
-        if message_body == 'restart':
+        if message_body.lower() == 'restart':
             logging.info(f"🔄 Restarting flow for user {phone_number}")
             user_data.current_step = 'choose_language'
             user_data.mode = 'flow'
@@ -326,9 +326,9 @@ def process_message():
         step_info = STEP_CONFIG.get(current_step)
 
         # 🔥 Step 5: Validate user input for the current step
-        if not step_info['validator'](message_body, user_data):
-            message = get_message(step_info['message'], user_data.language_code or 'en')
-            send_whatsapp_message(phone_number, message)
+        is_valid, error_message = step_info['validator'](message_body, user_data)
+        if not is_valid:
+            send_whatsapp_message(phone_number, error_message)
             return jsonify({"status": "failed"}), 400
 
         # 🔥 Step 6: Process the user input
@@ -373,7 +373,7 @@ def handle_process_completion(phone_number):
             message = (
                 "Thank you for using FinZo AI! Your current loan rates are already in great shape. "
                 "We’ll be in touch if better offers become available.\n\n"
-                "📞 Contact admin at wa.me/60167177813 for help or questions!"
+                "📞 Contact admin at wa.me/60126181683 for help or questions!"
             )
             send_whatsapp_message(phone_number, message)
             user_data.mode = 'query'
@@ -414,15 +414,18 @@ def handle_process_completion(phone_number):
 def prepare_summary_messages(user_data, calculation_results, language_code):
     """ Prepares the summary messages to be sent to the user. """
     
+    # Summary 1 - Savings Report
     summary_message_1 = f"{get_message('summary_title_1', language_code)}\n\n" + get_message('summary_content_1', language_code).format(
-            current_repayment=getattr(user_data, 'current_repayment', 0.0),
-            new_repayment=calculation_results.get('new_monthly_repayment', 0.0),
-            monthly_savings=calculation_results.get('monthly_savings', 0.0),
-            yearly_savings=calculation_results.get('yearly_savings', 0.0),
-            lifetime_savings=calculation_results.get('lifetime_savings', 0.0)
+        current_repayment=getattr(user_data, 'current_repayment', 0.0),  # Fixed
+        new_repayment=calculation_results.get('new_monthly_repayment', 0.0),
+        monthly_savings=calculation_results.get('monthly_savings', 0.0),
+        yearly_savings=calculation_results.get('yearly_savings', 0.0),
+        lifetime_savings=calculation_results.get('lifetime_savings', 0.0),
+        years_saved=calculation_results.get('years_saved', 0),  # Default to 0
+        months_saved=calculation_results.get('months_saved', 0) # Default to 0
     )
 
-
+    # Summary 2 - What's Next
     summary_message_2 = f"{get_message('summary_title_2', language_code)}\n\n" + get_message('summary_content_2', language_code).format(
         monthly_savings=calculation_results.get('monthly_savings', 0.0),
         yearly_savings=calculation_results.get('yearly_savings', 0.0),
@@ -431,12 +434,12 @@ def prepare_summary_messages(user_data, calculation_results, language_code):
         months_saved=calculation_results.get('months_saved', 0)
     )
 
+    # Summary 3 - Inquiry Mode
     summary_message_3 = f"{get_message('summary_title_3', language_code)}\n\n" + get_message('summary_content_3', language_code).format(
         whatsapp_link="https://wa.me/60167177813"
     )
 
     return [summary_message_1, summary_message_2, summary_message_3]
-
 
 def update_database(phone_number, user_data, calculation_results):
     try:
@@ -531,7 +534,7 @@ def handle_gpt_query(question, user_data, phone_number):
         logging.error(f"❌ Error while handling GPT query for {phone_number}: {str(e)}")
         message = (
             "We're currently experiencing issues processing your request. "
-            "Please try again later or contact our admin for assistance: wa.me/60167177813"
+            "Please try again later or contact our admin for assistance: wa.me/60126181683"
         )
 
     try:
