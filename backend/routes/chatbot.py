@@ -301,14 +301,20 @@ def process_message():
             )
             db.session.add(user_data)
             db.session.commit()
-            
-            # Use PROMPTS for welcome and language selection
             message = PROMPTS['en']['welcome_message'] + "\n\n" + PROMPTS['en']['choose_language']
             send_whatsapp_message(phone_number, message)
-            
             return jsonify({"status": "success"}), 200
 
-        # 🔥 Step 3: Handle "restart" command (reset the entire flow)
+        # 🔥 Step 3: Handle 24-hour reminder
+        last_active = user_data.updated_at
+        if (datetime.now(MYT) - last_active).total_seconds() > 86400:  # 24 hours
+            reminder_message = (
+                "Welcome back! If you'd like to recalculate your savings, please type 'restart'. "
+                "Otherwise, feel free to ask any questions about refinancing or home loans!"
+            )
+            send_whatsapp_message(phone_number, reminder_message)
+
+        # 🔥 Step 4: Handle "restart" command
         if message_body.lower() == 'restart':
             logging.info(f"🔄 Restarting flow for user {phone_number}")
             user_data.current_step = 'choose_language'
@@ -318,35 +324,33 @@ def process_message():
             user_data.original_loan_tenure = None
             user_data.current_repayment = None
             db.session.commit()
-
-            # Use PROMPTS for welcome and language selection
             message = PROMPTS['en']['welcome_message'] + "\n\n" + PROMPTS['en']['choose_language']
             send_whatsapp_message(phone_number, message)
-            
             return jsonify({"status": "success"}), 200
 
-        # 🔥 Step 4: Get Current Step and Process It
+        # 🔥 Step 5: Check if user is in query mode
+        if user_data.mode == 'query':
+            logging.info(f"🟢 User {phone_number} is in query mode.")
+            response = handle_gpt_query(message_body, user_data, phone_number)
+            return jsonify({"status": "success"}), 200
+
+        # 🔥 Step 6: Process Current Step
         current_step = user_data.current_step or 'choose_language'
         step_info = STEP_CONFIG.get(current_step)
-
-        # 🔥 Step 5: Validate user input for the current step
         is_valid, error_message = step_info['validator'](message_body, user_data)
         if not is_valid:
             send_whatsapp_message(phone_number, error_message)
             return jsonify({"status": "failed"}), 400
 
-        # 🔥 Step 6: Process the user input
         process_user_input(current_step, user_data, message_body)
-        
-        # 🔥 Step 7: If process is complete, trigger process completion logic
+
         if step_info['next_step'] == 'process_completion':
             return handle_process_completion(phone_number)
 
-        # 🔥 Step 8: Move to the next step and send the next message
         user_language_code = user_data.language_code or 'en'
         message = get_message(step_info['next_step'], user_language_code)
         send_whatsapp_message(phone_number, message)
-        
+
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
