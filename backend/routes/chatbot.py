@@ -34,6 +34,10 @@ logging.basicConfig(
     ]
 )
 
+ADMIN_PHONE_NUMBER = os.getenv('ADMIN_PHONE_NUMBER', '60126181683')
+WHATSAPP_LINK = f"https://wa.me/{ADMIN_PHONE_NUMBER}"
+
+
 PROMPTS = {
     'en': {
         'welcome_message': "🎉 Welcome to FinZo AI — Your Smart Refinancing Assistant! 🤖\n\n💸 Discover how much you can save by refinancing your home loan! Get quick insights and expert guidance to make the best decisions.\n\n🔄 Need to restart? Just type 'restart' anytime!",
@@ -435,7 +439,7 @@ def prepare_summary_messages(user_data, calculation_results, language_code):
     )
 
     # Get WhatsApp link from environment variable
-    admin_phone_number = os.getenv('ADMIN_PHONE_NUMBER', '60167177813')  # Default if missing
+    admin_phone_number = os.getenv('ADMIN_PHONE_NUMBER', '60126181683')  # Default if missing
     whatsapp_link = f"https://wa.me/{admin_phone_number}"
 
     summary_title_3 = get_message('summary_title_3', language_code)
