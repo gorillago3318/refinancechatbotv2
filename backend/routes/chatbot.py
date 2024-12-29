@@ -434,10 +434,15 @@ def prepare_summary_messages(user_data, calculation_results, language_code):
         months_saved=calculation_results.get('months_saved', 0)
     )
 
-    # Summary 3 - Inquiry Mode
-    summary_message_3 = f"{get_message('summary_title_3', language_code)}\n\n" + get_message('summary_content_3', language_code).format(
-        whatsapp_link="https://wa.me/60167177813"
+    # Get WhatsApp link from environment variable
+    admin_phone_number = os.getenv('ADMIN_PHONE_NUMBER', '60167177813')  # Default if missing
+    whatsapp_link = f"https://wa.me/{admin_phone_number}"
+
+    summary_title_3 = get_message('summary_title_3', language_code)
+    summary_content_3 = get_message('summary_content_3', language_code).format(
+        whatsapp_link=whatsapp_link
     )
+    summary_message_3 = f"{summary_title_3}\n\n{summary_content_3}"
 
     return [summary_message_1, summary_message_2, summary_message_3]
 
