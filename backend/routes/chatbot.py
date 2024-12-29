@@ -327,17 +327,15 @@ def handle_process_completion(phone_number):
             logging.error(f"❌ No user_data found for phone: {phone_number}")
             return jsonify({"status": "error", "message": "No user data found"}), 404
 
+        # Calculate refinance savings
         calculation_results = calculate_refinance_savings(
             user_data.original_loan_amount, 
             user_data.original_loan_tenure, 
             user_data.current_repayment
         )
 
-        if not calculation_results:
-            logging.error(f"❌ Calculation failed for phone: {phone_number}")
-            return jsonify({"status": "error", "message": "Calculation failed"}), 500
-
-        if calculation_results.get('monthly_savings', 0) <= 0:
+        # Handle no results or no savings
+        if not calculation_results or calculation_results.get('monthly_savings', 0) <= 0:
             message = (
                 "Thank you for using FinZo AI! Your current loan rates are already in great shape. "
                 "We’ll be in touch if better offers become available.\n\n"
@@ -348,10 +346,13 @@ def handle_process_completion(phone_number):
             db.session.commit()
             return jsonify({"status": "success"}), 200
 
-        summary_messages = prepare_summary_messages(user_data, calculation_results, user_data.language_code or 'en')
+        # Prepare and send summary messages
+        language_code = user_data.language_code if user_data.language_code in LANGUAGE_OPTIONS else 'en'
+        summary_messages = prepare_summary_messages(user_data, calculation_results, language_code)
         for message in summary_messages:
             send_whatsapp_message(phone_number, message)
 
+        # Notify admin and update database
         send_new_lead_to_admin(phone_number, user_data, calculation_results)
         update_database(phone_number, user_data, calculation_results)
         user_data.mode = 'query'
@@ -361,6 +362,7 @@ def handle_process_completion(phone_number):
 
     except Exception as e:
         logging.error(f"❌ Error in handle_process_completion: {str(e)}")
+        logging.error(f"Traceback: {traceback.format_exc()}")
         db.session.rollback()
         return jsonify({"status": "error", "message": "Something went wrong"}), 500
 
