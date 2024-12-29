@@ -187,7 +187,7 @@ def get_message(key, language_code):
             language_code = {'1': 'en', '2': 'ms', '3': 'zh'}[language_code]
 
         if language_code in LANGUAGE_OPTIONS:
-            message = LANGUAGE_OPTIONS[language_code].get(key, 'Message not found')
+            message = PROMPTS[language_code].get(key, 'Message not found')
         else:
             logging.error(f"Language '{language_code}' is not found in LANGUAGE_OPTIONS.")
             return 'Message not found'
