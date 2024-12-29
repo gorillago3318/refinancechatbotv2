@@ -183,13 +183,17 @@ LANGUAGE_OPTIONS = {
 def get_message(key, language_code):
     """ Retrieve a message from the appropriate language file. """
     try:
+        # Map language codes if provided as 1, 2, or 3
         if language_code in ['1', '2', '3']:
             language_code = {'1': 'en', '2': 'ms', '3': 'zh'}[language_code]
 
-        if language_code in LANGUAGE_OPTIONS:
+        # Check LANGUAGE_OPTIONS first, then fallback to PROMPTS
+        if language_code in LANGUAGE_OPTIONS and key in LANGUAGE_OPTIONS[language_code]:
+            message = LANGUAGE_OPTIONS[language_code].get(key, 'Message not found')
+        elif language_code in PROMPTS and key in PROMPTS[language_code]:
             message = PROMPTS[language_code].get(key, 'Message not found')
         else:
-            logging.error(f"Language '{language_code}' is not found in LANGUAGE_OPTIONS.")
+            logging.error(f"Key '{key}' not found in LANGUAGE_OPTIONS or PROMPTS for language '{language_code}'.")
             return 'Message not found'
 
     except Exception as e:
@@ -198,6 +202,7 @@ def get_message(key, language_code):
         message = 'Message not found'
 
     return message
+
 
 def delete_chatflow_data(phone_number):
     """Delete all chatflow data for a specific phone number."""
@@ -319,7 +324,6 @@ def process_message():
 
 def handle_process_completion(phone_number):
     """ Handles the completion of the process and calculates refinance savings. """
-    
     try:
         user_data = db.session.query(ChatflowTemp).filter_by(phone_number=phone_number).first()
         
@@ -348,13 +352,23 @@ def handle_process_completion(phone_number):
 
         # Prepare and send summary messages
         language_code = user_data.language_code if user_data.language_code in LANGUAGE_OPTIONS else 'en'
-        summary_messages = prepare_summary_messages(user_data, calculation_results, language_code)
-        for message in summary_messages:
-            send_whatsapp_message(phone_number, message)
+        try:
+            summary_messages = prepare_summary_messages(user_data, calculation_results, language_code)
+            for message in summary_messages:
+                send_whatsapp_message(phone_number, message)
+        except Exception as e:
+            logging.error(f"❌ Error while preparing or sending summary messages: {str(e)}")
+            return jsonify({"status": "error", "message": "Failed to send summary messages."}), 500
 
         # Notify admin and update database
-        send_new_lead_to_admin(phone_number, user_data, calculation_results)
-        update_database(phone_number, user_data, calculation_results)
+        try:
+            send_new_lead_to_admin(phone_number, user_data, calculation_results)
+            update_database(phone_number, user_data, calculation_results)
+        except Exception as e:
+            logging.error(f"❌ Error while notifying admin or updating database: {str(e)}")
+            return jsonify({"status": "error", "message": "Failed to update admin or database."}), 500
+
+        # Commit only after all tasks succeed
         user_data.mode = 'query'
         db.session.commit()
 
@@ -390,12 +404,13 @@ def prepare_summary_messages(user_data, calculation_results, language_code):
     """ Prepares the summary messages to be sent to the user. """
     
     summary_message_1 = f"{get_message('summary_title_1', language_code)}\n\n" + get_message('summary_content_1', language_code).format(
-        current_repayment=getattr(user_data, 'current_repayment', 0.0),
-        new_repayment=calculation_results.get('new_monthly_repayment', 0.0),
-        monthly_savings=calculation_results.get('monthly_savings', 0.0),
-        yearly_savings=calculation_results.get('yearly_savings', 0.0),
-        lifetime_savings=calculation_results.get('lifetime_savings', 0.0)
+            current_repayment=getattr(user_data, 'current_repayment', 0.0),
+            new_repayment=calculation_results.get('new_monthly_repayment', 0.0),
+            monthly_savings=calculation_results.get('monthly_savings', 0.0),
+            yearly_savings=calculation_results.get('yearly_savings', 0.0),
+            lifetime_savings=calculation_results.get('lifetime_savings', 0.0)
     )
+
 
     summary_message_2 = f"{get_message('summary_title_2', language_code)}\n\n" + get_message('summary_content_2', language_code).format(
         monthly_savings=calculation_results.get('monthly_savings', 0.0),
@@ -411,30 +426,6 @@ def prepare_summary_messages(user_data, calculation_results, language_code):
 
     return [summary_message_1, summary_message_2, summary_message_3]
 
-def prepare_summary_messages(user_data, calculation_results, language_code):
-    """ Prepares the summary messages to be sent to the user. """
-    
-    summary_message_1 = f"{get_message('summary_title_1', language_code)}\n\n" + get_message('summary_content_1', language_code).format(
-        current_repayment=getattr(user_data, 'current_repayment', 0.0),
-        new_repayment=calculation_results.get('new_monthly_repayment', 0.0),
-        monthly_savings=calculation_results.get('monthly_savings', 0.0),
-        yearly_savings=calculation_results.get('yearly_savings', 0.0),
-        lifetime_savings=calculation_results.get('lifetime_savings', 0.0)
-    )
-
-    summary_message_2 = f"{get_message('summary_title_2', language_code)}\n\n" + get_message('summary_content_2', language_code).format(
-        monthly_savings=calculation_results.get('monthly_savings', 0.0),
-        yearly_savings=calculation_results.get('yearly_savings', 0.0),
-        lifetime_savings=calculation_results.get('lifetime_savings', 0.0),
-        years_saved=calculation_results.get('years_saved', 0),
-        months_saved=calculation_results.get('months_saved', 0)
-    )
-
-    summary_message_3 = f"{get_message('summary_title_3', language_code)}\n\n" + get_message('summary_content_3', language_code).format(
-        whatsapp_link="https://wa.me/60167177813"
-    )
-
-    return [summary_message_1, summary_message_2, summary_message_3]
 
 def update_database(phone_number, user_data, calculation_results):
     try:
