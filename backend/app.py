@@ -39,6 +39,7 @@ def create_app():
 def register_routes(app):
     """Register all routes for the application."""
     app.register_blueprint(chatbot_bp, url_prefix='/chatbot')  
+
     @app.route('/webhook', methods=['GET', 'POST'])
     def webhook():
         if request.method == 'GET':
@@ -66,7 +67,8 @@ def register_routes(app):
                             phone_number = message.get('from', 'Unknown')
                             user_message = message.get('text', {}).get('body', 'No message body').strip()
                             logging.info(f"💎 Incoming message from {phone_number}: {user_message}")
-                            
+
+                            # Pass data explicitly to chatbot
                             with current_app.app_context():  
                                 response = current_app.view_functions['chatbot.process_message']()
                 return 'OK', 200
@@ -76,10 +78,11 @@ def register_routes(app):
                 return 'Internal Server Error', 500
 
     # Print environment variables for debugging
-    print("WHATSAPP_API_URL:", os.getenv('WHATSAPP_API_URL'))
-    print("WHATSAPP_API_TOKEN:", os.getenv('WHATSAPP_API_TOKEN'))
-    print("WHATSAPP_PHONE_NUMBER_ID:", os.getenv('WHATSAPP_PHONE_NUMBER_ID'))
+    logging.info("WHATSAPP_API_URL: %s", os.getenv('WHATSAPP_API_URL'))
+    logging.info("WHATSAPP_API_TOKEN: %s", os.getenv('WHATSAPP_API_TOKEN'))
+    logging.info("WHATSAPP_PHONE_NUMBER_ID: %s", os.getenv('WHATSAPP_PHONE_NUMBER_ID'))
 
 if __name__ == '__main__':
+    DEBUG = os.getenv('DEBUG', 'False').lower() in ['true', '1', 'yes']
     app = create_app()
-    app.run(debug=True, port=5000)
+    app.run(debug=DEBUG, port=5000)
