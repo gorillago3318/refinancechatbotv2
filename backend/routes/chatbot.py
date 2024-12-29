@@ -36,7 +36,8 @@ logging.basicConfig(
 
 PROMPTS = {
     'en': {
-        'choose_language': "🎉 Welcome to FinZo AI — Your Smart Refinancing Assistant! 🤖\n\n💸 Discover Your Savings Potential – Instantly estimate how much you could save by refinancing your home loan.\n💡 Expert Guidance at Your Fingertips – Get quick answers to your refinancing and home loan questions.\n🔄 Simple Restart – Type 'restart' anytime to start over.\n\n👉 Let’s get started! Please select your preferred language:\n\n🌐 Choose Language:\n1️⃣ English \n2️⃣ Bahasa Malaysia \n3️⃣ 中文 (Chinese)",
+        'welcome_message': "🎉 Welcome to FinZo AI — Your Smart Refinancing Assistant! 🤖\n\n💸 Discover Your Savings Potential – Instantly estimate how much you could save by refinancing your home loan.\n💡 Expert Guidance at Your Fingertips – Get quick answers to your refinancing and home loan questions.\n🔄 Simple Restart – Type 'restart' anytime to start over.",
+        'choose_language': "🌐 Choose Language:\n1️⃣ English \n2️⃣ Bahasa Malaysia \n3️⃣ 中文 (Chinese)",
         'get_name': "📝 *Step 1: Enter Your Name* \n\nPlease enter your *full name*.\n\n💡 Example: John Doe",
         'get_loan_amount': "💸 *Step 2: Enter Your Loan Amount* \n\nPlease enter the *original loan amount*.\n\n💡 Example: 250000",
         'get_loan_tenure': "📆 *Step 3: Enter Your Loan Tenure* \n\nPlease enter the *loan tenure* in years.\n\n💡 Example: 30",
@@ -44,6 +45,7 @@ PROMPTS = {
         'thank_you': "🎉 Thank you! Your details have been captured. We will calculate your savings and follow up shortly."    
     }
 }
+
 
 openai.api_key = os.getenv("OPENAI_API_KEY").strip()
 # ✅ Add routes (Example Route)
@@ -261,8 +263,8 @@ def process_message():
             db.session.add(user_data)
             db.session.commit()
             
-            # Send direct language prompt instead of welcome message
-            message = "🌐 Choose Language:\n1️⃣ English \n2️⃣ Bahasa Malaysia \n3️⃣ 中文 (Chinese)"
+            # Use PROMPTS for welcome and language selection
+            message = PROMPTS['en']['welcome_message'] + "\n\n" + PROMPTS['en']['choose_language']
             send_whatsapp_message(phone_number, message)
             
             return jsonify({"status": "success"}), 200
@@ -278,8 +280,8 @@ def process_message():
             user_data.current_repayment = None
             db.session.commit()
 
-            # Send language selection prompt again
-            message = "🌐 Choose Language:\n1️⃣ English \n2️⃣ Bahasa Malaysia \n3️⃣ 中文 (Chinese)"
+            # Use PROMPTS for welcome and language selection
+            message = PROMPTS['en']['welcome_message'] + "\n\n" + PROMPTS['en']['choose_language']
             send_whatsapp_message(phone_number, message)
             
             return jsonify({"status": "success"}), 200
@@ -313,6 +315,7 @@ def process_message():
         logging.error(f"Traceback: {traceback.format_exc()}")
         db.session.rollback()
         return jsonify({"status": "error"}), 500
+
 
 def handle_process_completion(phone_number):
     """ Handles the completion of the process and calculates refinance savings. """
