@@ -192,25 +192,25 @@ LANGUAGE_OPTIONS = {
         'summary_title_1': "📊 Savings Summary Report",
         'summary_content_1': "✨ Here's what we’ve calculated for you:\n\n💳 Current Repayment: RM {current_repayment:.2f}\n📉 New Repayment: RM {new_repayment:.2f}\n💸 Monthly Savings: RM {monthly_savings:.2f}\n📆 Yearly Savings: RM {yearly_savings:.2f}\n💰 Lifetime Savings: RM {lifetime_savings:.2f}\n\n🎉 Great News! By refinancing, you could save up to {years_saved} year(s) and {months_saved} month(s) of repayments. Imagine the freedom of clearing your loan faster or having extra cash every month!",
         'summary_title_2': "🛠️ What's Next? Your Path to Savings",
-        'summary_content_2': "You now have 3 powerful options to achieve your financial goals:\n\n1️⃣ Lower Your Monthly Repayment – Enjoy immediate savings and extra cash flow.\n2️⃣ Shorten Your Loan Tenure – Achieve financial freedom faster and save on total interest paid.\n3️⃣ Cash Out Home Equity – Unlock funds for renovations, investments, or other financial needs.\n\n🌟 Our Specialist Will Assist You! A refinance expert will reach out to you shortly to discuss your options and ensure you make the best decision.\n\n📞 Need urgent assistance? Contact us directly at {whatsapp_link}.",
+        'summary_content_2': f"You now have 3 powerful options to achieve your financial goals:\n\n1️⃣ Lower Your Monthly Repayment – Enjoy immediate savings and extra cash flow.\n2️⃣ Shorten Your Loan Tenure – Achieve financial freedom faster and save on total interest paid.\n3️⃣ Cash Out Home Equity – Unlock funds for renovations, investments, or other financial needs.\n\n🌟 Our Specialist Will Assist You! A refinance expert will reach out to you shortly to discuss your options and ensure you make the best decision.\n\n📞 Need urgent assistance? Contact us directly at {https://wa.me/60126181683}.",
         'summary_title_3': "Inquiry Mode Activated",
-        'summary_content_3': "You're now talking to Finzo AI.\n\nJust ask any questions in regards to refinancing and home loans. I will try my best to assist you.\n\nSince I am still a language model, I might not be able to answer some of your questions. Not to worry, you can always drop a message to our admin at {whatsapp_link} if you need further assistance."
+        'summary_content_3': f"You're now talking to Finzo AI.\n\nJust ask any questions in regards to refinancing and home loans. I will try my best to assist you.\n\nSince I am still a language model, I might not be able to answer some of your questions. Not to worry, you can always drop a message to our admin at {https://wa.me/60126181683} if you need further assistance."
     },
     'ms': {
         'summary_title_1': "📊 Laporan Ringkasan Penjimatan",
         'summary_content_1': "✨ Berikut adalah hasil pengiraan kami:\n\n💳 Bayaran Bulanan Semasa: RM {current_repayment:.2f}\n📉 Bayaran Bulanan Baru: RM {new_repayment:.2f}\n💸 Penjimatan Bulanan: RM {monthly_savings:.2f}\n📆 Penjimatan Tahunan: RM {yearly_savings:.2f}\n💰 Penjimatan Sepanjang Tempoh: RM {lifetime_savings:.2f}\n\n🎉 Berita Baik! Dengan pembiayaan semula, anda boleh menjimatkan sehingga {years_saved} tahun dan {months_saved} bulan pembayaran!",
         'summary_title_2': "🛠️ Apa Langkah Seterusnya?",
-        'summary_content_2': "Anda kini mempunyai 3 pilihan hebat untuk mencapai matlamat kewangan anda:\n\n1️⃣ Kurangkan Bayaran Bulanan – Nikmati penjimatan segera dan aliran tunai tambahan.\n2️⃣ Pendekkan Tempoh Pinjaman – Capai kebebasan kewangan lebih cepat dan jimat faedah keseluruhan.\n3️⃣ Tunaikan Ekuiti Rumah – Dapatkan dana untuk pengubahsuaian, pelaburan, atau keperluan lain.\n\n🌟 Pakar Kami Akan Membantu Anda! Pakar pembiayaan semula akan menghubungi anda untuk membincangkan pilihan dan membantu anda membuat keputusan terbaik.\n\n📞 Perlukan bantuan segera? Hubungi kami di {whatsapp_link}.",
+        'summary_content_2': f"Anda kini mempunyai 3 pilihan hebat untuk mencapai matlamat kewangan anda:\n\n1️⃣ Kurangkan Bayaran Bulanan – Nikmati penjimatan segera dan aliran tunai tambahan.\n2️⃣ Pendekkan Tempoh Pinjaman – Capai kebebasan kewangan lebih cepat dan jimat faedah keseluruhan.\n3️⃣ Tunaikan Ekuiti Rumah – Dapatkan dana untuk pengubahsuaian, pelaburan, atau keperluan lain.\n\n🌟 Pakar Kami Akan Membantu Anda! Pakar pembiayaan semula akan menghubungi anda untuk membincangkan pilihan dan membantu anda membuat keputusan terbaik.\n\n📞 Perlukan bantuan segera? Hubungi kami di {https://wa.me/60126181683}.",
         'summary_title_3': "Mod Pertanyaan Diaktifkan",
-        'summary_content_3': "Anda kini berhubung dengan Finzo AI.\n\nTanya sebarang soalan mengenai pembiayaan semula dan pinjaman rumah. Saya akan cuba sedaya upaya untuk membantu anda.\n\nOleh kerana saya masih model bahasa, mungkin saya tidak dapat menjawab semua soalan anda. Jangan risau, anda boleh hubungi admin kami di {whatsapp_link} untuk bantuan lanjut."
+        'summary_content_3': f"Anda kini berhubung dengan Finzo AI.\n\nTanya sebarang soalan mengenai pembiayaan semula dan pinjaman rumah. Saya akan cuba sedaya upaya untuk membantu anda.\n\nOleh kerana saya masih model bahasa, mungkin saya tidak dapat menjawab semua soalan anda. Jangan risau, anda boleh hubungi admin kami di {https://wa.me/60126181683} untuk bantuan lanjut."
     },
     'zh': {
         'summary_title_1': "📊 储蓄总结报告",
         'summary_content_1': "✨ 这是我们为您计算的结果:\n\n💳 当前还款金额: RM {current_repayment:.2f}\n📉 新还款金额: RM {new_repayment:.2f}\n💸 每月节省: RM {monthly_savings:.2f}\n📆 每年节省: RM {yearly_savings:.2f}\n💰 总节省: RM {lifetime_savings:.2f}\n\n🎉 好消息！通过再融资，您最多可节省 {years_saved} 年和 {months_saved} 个月的还款！",
         'summary_title_2': "🛠️ 接下来的步骤?",
-        'summary_content_2': "您现在有 3 个强大的选项来实现您的财务目标:\n\n1️⃣ 降低月供 – 享受即时节省和现金流改善。\n2️⃣ 缩短贷款期限 – 更快实现财务自由并减少总利息。\n3️⃣ 提取房屋净值 – 获取资金用于装修、投资或其他财务需求。\n\n🌟 我们的专家将帮助您！再融资专家将尽快与您联系，帮助您做出最佳决策。\n\n📞 需要紧急帮助？请直接联系我们 {whatsapp_link}。",
+        'summary_content_2': f"您现在有 3 个强大的选项来实现您的财务目标:\n\n1️⃣ 降低月供 – 享受即时节省和现金流改善。\n2️⃣ 缩短贷款期限 – 更快实现财务自由并减少总利息。\n3️⃣ 提取房屋净值 – 获取资金用于装修、投资或其他财务需求。\n\n🌟 我们的专家将帮助您！再融资专家将尽快与您联系，帮助您做出最佳决策。\n\n📞 需要紧急帮助？请直接联系我们 {https://wa.me/60126181683}。",
         'summary_title_3': "查询模式已激活",
-        'summary_content_3': "您现在正在与 Finzo AI 对话。\n\n请随时提问有关再融资和房屋贷款的问题，我会尽力协助您。\n\n由于我仍然是一个语言模型，我可能无法回答所有问题。如果需要进一步帮助，请随时联系我们的管理员 {whatsapp_link}。"
+        'summary_content_3': f"您现在正在与 Finzo AI 对话。\n\n请随时提问有关再融资和房屋贷款的问题，我会尽力协助您。\n\n由于我仍然是一个语言模型，我可能无法回答所有问题。如果需要进一步帮助，请随时联系我们的管理员 {https://wa.me/60126181683}。"
     }
 }
 
@@ -365,6 +365,9 @@ def handle_process_completion(phone_number):
             logging.error(f"❌ No user_data found for phone: {phone_number}")
             return jsonify({"status": "error", "message": "No user data found"}), 404
 
+        # Hardcoded admin phone number
+        admin_phone_number = '60126181683'
+
         # Calculate refinance savings
         calculation_results = calculate_refinance_savings(
             user_data.original_loan_amount, 
@@ -372,12 +375,24 @@ def handle_process_completion(phone_number):
             user_data.current_repayment
         )
 
+        # Handle case where new repayment is higher than current repayment
+        if calculation_results.get('new_monthly_repayment', 0.0) >= user_data.current_repayment:
+            message = (
+                "Thank you for using FinZo AI! Based on our calculations, refinancing may result in higher payments.\n\n"
+                "💬 If you'd still like to explore options, feel free to contact our admin for further assistance at "
+                f"https://wa.me/{admin_phone_number}"
+            )
+            send_whatsapp_message(phone_number, message)
+            user_data.mode = 'query'
+            db.session.commit()
+            return jsonify({"status": "success"}), 200
+
         # Handle no results or no savings
         if not calculation_results or calculation_results.get('monthly_savings', 0) <= 0:
             message = (
                 "Thank you for using FinZo AI! Your current loan rates are already in great shape. "
                 "We’ll be in touch if better offers become available.\n\n"
-                "📞 Contact admin at wa.me/60126181683 for help or questions!"
+                f"📞 Contact admin at https://wa.me/{admin_phone_number} for help or questions!"
             )
             send_whatsapp_message(phone_number, message)
             user_data.mode = 'query'
@@ -414,7 +429,6 @@ def handle_process_completion(phone_number):
         db.session.rollback()
         return jsonify({"status": "error", "message": "Something went wrong"}), 500
 
-
 def prepare_summary_messages(user_data, calculation_results, language_code):
     """ Prepares the summary messages to be sent to the user. """
     
@@ -438,8 +452,8 @@ def prepare_summary_messages(user_data, calculation_results, language_code):
         months_saved=calculation_results.get('months_saved', 0)
     )
 
-    # Get WhatsApp link from environment variable
-    admin_phone_number = os.getenv('ADMIN_PHONE_NUMBER', '60126181683')  # Default if missing
+    # Hardcoded admin phone number
+    admin_phone_number = '60126181683'
     whatsapp_link = f"https://wa.me/{admin_phone_number}"
 
     summary_title_3 = get_message('summary_title_3', language_code)
