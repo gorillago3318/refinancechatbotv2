@@ -526,7 +526,7 @@ def send_new_lead_to_admin(phone_number, user_data, calculation_results):
 
 def handle_gpt_query(question, user_data, phone_number):
     """Handles GPT query requests confined to refinance and home loan topics only."""
-    current_time = datetime.datetime.now()
+    current_time = datetime.now()
 
     try:
         # 🟢 Step 1: Check for a preset response for the question
