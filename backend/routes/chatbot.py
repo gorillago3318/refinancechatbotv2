@@ -24,7 +24,7 @@ from datetime import datetime
 
 MYT = pytz.timezone('Asia/Kuala_Lumpur')  # Malaysia timezone
 
-openai.api_key = "YOUR_OPENAI_API_KEY"
+openai.api_key = os.getenv("OPENAI_API_KEY").strip()
 
 # Logging setup
 logging.basicConfig(
@@ -537,11 +537,13 @@ def handle_gpt_query(question, user_data, phone_number):
         )
 
         # Query GPT-3.5 Turbo
-        response = openai.Completion.create(
-            model="text-davinci-003",  # Supported in v0.28.0
-            prompt=f"{system_prompt}\nUser: {question}\nAssistant:",  # Plain text input
-            max_tokens=500,
-            temperature=0.7
+        # New way (for chat models)
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # or another model as needed
+            messages=[
+                {"role": "user", "content": "Your prompt here"}
+            ],
+            max_tokens=150
         )
 
         # Extract the response
