@@ -555,7 +555,7 @@ def handle_gpt_query(question, user_data, phone_number):
 
         # Query GPT-3.5 Turbo
         # New way (for chat models)
-        response = openai.completion.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",  # or another model as needed
             messages=[
                 {"role": "user", "content": "Your prompt here"}
