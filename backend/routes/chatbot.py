@@ -528,37 +528,28 @@ def send_new_lead_to_admin(phone_number, user_data, calculation_results):
 
 def handle_gpt_query(question, user_data, phone_number):
     """Handles GPT query requests confined to refinance and home loan topics only."""
-    current_time = datetime.now()
-
     try:
-        # 🟢 Step 1: Check for a preset response for the question
-        response = get_preset_response(question, user_data.language_code or 'en')
-        
-        if response:
-            logging.info(f"✅ Preset response found for query: {question}")
-            message = response
-        else:
-            # 🟢 Step 2: Call OpenAI GPT-3.5-turbo with strict topic guidelines
-            logging.info(f"❌ No preset found. Querying OpenAI GPT for: {question}")
-            system_prompt = (
-                "You are a helpful assistant focused only on refinance and home loan topics. "
-                "Respond strictly about home loans, refinancing, mortgage rates, eligibility, payments, and savings options. "
-                "Avoid unrelated topics and politely redirect users to stay focused on these subjects."
-            )
-            response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # or "gpt-4" for GPT-4
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant focused only on refinance and home loan topics."},
-                {"role": "user", "content": "What is refinancing?"}
-            ],
-            max_tokens=500,  # Limit response length
-            temperature=0.7  # Controls randomness
-            )
+        # System prompt
+        system_prompt = (
+            "You are a helpful assistant focused only on refinance and home loan topics. "
+            "Respond strictly about home loans, refinancing, mortgage rates, eligibility, payments, and savings options. "
+            "Avoid unrelated topics and politely redirect users to stay focused on these subjects."
+        )
 
-        message = response['choices'][0]['message']['content']
-        print(message)
-        # 🟢 Log the GPT Query into ChatLog table
-        log_gpt_query(phone_number, question, message)  # Pass phone number instead of user_id
+        # Query GPT-3.5 Turbo
+        response = openai.Completion.create(
+            model="text-davinci-003",  # Supported in v0.28.0
+            prompt=f"{system_prompt}\nUser: {question}\nAssistant:",  # Plain text input
+            max_tokens=500,
+            temperature=0.7
+        )
+
+        # Extract the response
+        message = response['choices'][0]['text'].strip()
+        logging.info(f"✅ GPT response received for user {phone_number}")
+
+        # Log query
+        log_gpt_query(phone_number, question, message)
 
     except Exception as e:
         logging.error(f"❌ Error while handling GPT query for {phone_number}: {str(e)}")
@@ -567,11 +558,11 @@ def handle_gpt_query(question, user_data, phone_number):
             "Please try again later or contact our admin for assistance: wa.me/60126181683"
         )
 
+    # Send the response back
     try:
         send_whatsapp_message(phone_number, message)
     except Exception as e:
         logging.error(f"❌ Error sending message to user {phone_number}: {str(e)}")
-
 
 def log_chat(phone_number, user_message, bot_message):
     """Logs regular chats into ChatLog table with valid user_id."""
