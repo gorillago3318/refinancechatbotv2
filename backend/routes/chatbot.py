@@ -542,11 +542,14 @@ def handle_gpt_query(question, user_data, phone_number):
 
         # Query GPT-3.5 Turbo
         # New way (for chat models)
-        response = openai.Completion.create(
-            model="text-davinci-003",  # Compatible with v0.28.0
-            prompt=f"{system_prompt}\nUser: {question}\nAssistant:",  # Plain text prompt format
-            max_tokens=150,
-            temperature=0.7
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question}
+            ],
+            temperature=0.7,
+            max_tokens=150
         )
         message = response['choices'][0]['text'].strip()
         # Log query
