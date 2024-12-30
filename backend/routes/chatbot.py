@@ -73,19 +73,6 @@ PROMPTS = {
 openai.api_key = os.getenv("OPENAI_API_KEY").strip()
 
 
-def get_chat_response(messages):
-    """Get a response from OpenAI's chat model."""
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # or another model as needed
-            messages=messages,
-            max_tokens=150
-        )
-        return response['choices'][0]['message']['content']
-    except Exception as e:
-        logging.error(f"❌ Error while getting chat response: {e}")
-        return "Sorry, I couldn't process your request."
-
 
 # ✅ Add routes (Example Route)
 @chatbot_bp.route('/test', methods=['GET'])
@@ -555,18 +542,13 @@ def handle_gpt_query(question, user_data, phone_number):
 
         # Query GPT-3.5 Turbo
         # New way (for chat models)
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # or another model as needed
-            messages=[
-                {"role": "user", "content": "Your prompt here"}
-            ],
-            max_tokens=150
+        response = openai.Completion.create(
+            model="text-davinci-003",  # Compatible with v0.28.0
+            prompt=f"{system_prompt}\nUser: {question}\nAssistant:",  # Plain text prompt format
+            max_tokens=150,
+            temperature=0.7
         )
-
-        # Extract the response
         message = response['choices'][0]['text'].strip()
-        logging.info(f"✅ GPT response received for user {phone_number}")
-
         # Log query
         log_gpt_query(phone_number, question, message)
 
