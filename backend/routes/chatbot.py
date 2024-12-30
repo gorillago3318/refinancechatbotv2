@@ -545,7 +545,7 @@ def handle_gpt_query(question, user_data, phone_number):
                 "Respond strictly about home loans, refinancing, mortgage rates, eligibility, payments, and savings options. "
                 "Avoid unrelated topics and politely redirect users to stay focused on these subjects."
             )
-            response = openai.Completion.create(
+            response = openai.completions.create(
                 model="gpt-3.5-turbo",  # Use GPT-3.5 Turbo model
                 prompt=f"User: {question}\nAssistant:",  # Simple text prompt
                 max_tokens=1000,  # Limit the length of response
