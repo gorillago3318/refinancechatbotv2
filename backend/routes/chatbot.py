@@ -543,12 +543,14 @@ def handle_gpt_query(question, user_data, phone_number):
                 "Respond strictly about home loans, refinancing, mortgage rates, eligibility, payments, and savings options. "
                 "Avoid unrelated topics and politely redirect users to stay focused on these subjects."
             )
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": question}
-                ]
+                ],
+                temperature=0.7,
+                max_tokens=150
             )
             message = response.choices[0].message.content
             logging.info(f"✅ GPT response received for user {phone_number}")
