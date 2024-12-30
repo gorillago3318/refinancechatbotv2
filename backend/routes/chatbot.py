@@ -24,6 +24,8 @@ from datetime import datetime
 
 MYT = pytz.timezone('Asia/Kuala_Lumpur')  # Malaysia timezone
 
+openai.api_key = "YOUR_OPENAI_API_KEY"
+
 # Logging setup
 logging.basicConfig(
     level=logging.DEBUG,
@@ -543,7 +545,7 @@ def handle_gpt_query(question, user_data, phone_number):
                 "Respond strictly about home loans, refinancing, mortgage rates, eligibility, payments, and savings options. "
                 "Avoid unrelated topics and politely redirect users to stay focused on these subjects."
             )
-            response = client.chat.completions.create(
+            response = openai.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_prompt},
