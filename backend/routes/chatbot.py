@@ -72,6 +72,21 @@ PROMPTS = {
 
 openai.api_key = os.getenv("OPENAI_API_KEY").strip()
 
+
+def get_chat_response(messages):
+    """Get a response from OpenAI's chat model."""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # or another model as needed
+            messages=messages,
+            max_tokens=150
+        )
+        return response['choices'][0]['message']['content']
+    except Exception as e:
+        logging.error(f"❌ Error while getting chat response: {e}")
+        return "Sorry, I couldn't process your request."
+
+
 # ✅ Add routes (Example Route)
 @chatbot_bp.route('/test', methods=['GET'])
 def test():
@@ -296,9 +311,9 @@ def process_message():
         # 🔥 Step 2: If no user data exists, create new entry for this phone
         if not user_data:
             user_data = ChatflowTemp(
-                phone_number=phone_number, 
-                current_step='choose_language', 
-                language_code='en', 
+                phone_number=phone_number,
+                current_step='choose_language',
+                language_code='en',
                 mode='flow'  # ✅ Set default mode to 'flow'
             )
             db.session.add(user_data)
@@ -334,11 +349,13 @@ def process_message():
         if user_data.mode == 'query':
             logging.info(f"🟢 User {phone_number} is in query mode.")
             response = handle_gpt_query(message_body, user_data, phone_number)
+            send_whatsapp_message(phone_number, response)
             return jsonify({"status": "success"}), 200
 
         # 🔥 Step 6: Process Current Step
         current_step = user_data.current_step or 'choose_language'
         step_info = STEP_CONFIG.get(current_step)
+        
         is_valid, error_message = step_info['validator'](message_body, user_data)
         if not is_valid:
             send_whatsapp_message(phone_number, error_message)
@@ -538,7 +555,7 @@ def handle_gpt_query(question, user_data, phone_number):
 
         # Query GPT-3.5 Turbo
         # New way (for chat models)
-        response = openai.ChatCompletion.create(
+        response = openai.completion.create(
             model="gpt-3.5-turbo",  # or another model as needed
             messages=[
                 {"role": "user", "content": "Your prompt here"}
