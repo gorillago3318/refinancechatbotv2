@@ -545,16 +545,18 @@ def handle_gpt_query(question, user_data, phone_number):
                 "Respond strictly about home loans, refinancing, mortgage rates, eligibility, payments, and savings options. "
                 "Avoid unrelated topics and politely redirect users to stay focused on these subjects."
             )
-            response = openai.completions.create(
-                model="gpt-3.5-turbo",  # Use GPT-3.5 Turbo model
-                prompt=f"User: {question}\nAssistant:",  # Simple text prompt
-                max_tokens=1000,  # Limit the length of response
-                temperature=0.7  # Controls randomness
+            response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # or "gpt-4" for GPT-4
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant focused only on refinance and home loan topics."},
+                {"role": "user", "content": "What is refinancing?"}
+            ],
+            max_tokens=500,  # Limit response length
+            temperature=0.7  # Controls randomness
             )
 
-            message = response['choices'][0]['text'].strip()  # Extract the response
-            logging.info(f"✅ GPT response received for user {phone_number}")
-
+        message = response['choices'][0]['message']['content']
+        print(message)
         # 🟢 Log the GPT Query into ChatLog table
         log_gpt_query(phone_number, question, message)  # Pass phone number instead of user_id
 
