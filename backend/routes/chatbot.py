@@ -509,40 +509,57 @@ def update_database(phone_number, user_data, calculation_results):
 
 
 def send_new_lead_to_admin(phone_number, user_data, calculation_results):
+    """Enhanced admin notification with clearer formatting."""
     admin_number = os.getenv('ADMIN_PHONE_NUMBER')
     if not admin_number:
         logging.error("ADMIN_PHONE_NUMBER not set in environment variables.")
         return
     
     message = (
-        f"📢 New Lead Alert! 📢\n\n"
-        f"👤 Name: {getattr(user_data, 'name', 'Unknown')}\n"
-        f"💰 Current Loan Amount: RM {getattr(user_data, 'original_loan_amount', 'N/A')}\n"
-        f"📅 Current Tenure: {getattr(user_data, 'original_loan_tenure', 'N/A')} years\n"
-        f"📉 Current Repayment: RM {getattr(user_data, 'current_repayment', 'N/A')}\n"
-        f"📈 New Repayment: RM {calculation_results.get('new_monthly_repayment', 'N/A')}\n"
-        f"💸 Monthly Savings: RM {calculation_results.get('monthly_savings', 'N/A')}\n"
-        f"💰 Yearly Savings: RM {calculation_results.get('yearly_savings', 'N/A')}\n"
-        f"🎉 Total Savings: RM {calculation_results.get('lifetime_savings', 'N/A')}\n"
-        f"🕒 Years Saved: {calculation_results.get('years_saved', 'N/A')} years\n\n"
-        f"📱 Whatsapp ID: https://wa.me/{phone_number}"
+        f"🔔 *NEW LEAD DETAILS*\n\n"
+        f"👤 *Client Information*\n"
+        f"• Name: {getattr(user_data, 'name', 'Unknown')}\n"
+        f"• Contact: wa.me/{phone_number}\n\n"
+        f"💰 *Loan Details*\n"
+        f"• Current Amount: RM {getattr(user_data, 'original_loan_amount', 'N/A'):,.2f}\n"
+        f"• Current Tenure: {getattr(user_data, 'original_loan_tenure', 'N/A')} years\n"
+        f"• Current Monthly: RM {getattr(user_data, 'current_repayment', 'N/A'):,.2f}\n\n"
+        f"📊 *Potential Savings*\n"
+        f"• New Monthly: RM {calculation_results.get('new_monthly_repayment', 0):,.2f}\n"
+        f"• Monthly Savings: RM {calculation_results.get('monthly_savings', 0):,.2f}\n"
+        f"• Yearly Savings: RM {calculation_results.get('yearly_savings', 0):,.2f}\n"
+        f"• Total Savings: RM {calculation_results.get('lifetime_savings', 0):,.2f}\n"
+        f"• Time Saved: {calculation_results.get('years_saved', 0)} years"
     )
 
     send_whatsapp_message(admin_number, message)
 
-# [Previous imports and code remain the same until handle_gpt_query function]
-
 def handle_gpt_query(question, user_data, phone_number):
-    """Handles GPT query requests confined to refinance and home loan topics only."""
+    """Handles GPT query requests with improved response handling."""
     try:
-        # System prompt
+        # Enhanced system prompt with specific instruction for direct answers
         system_prompt = (
-            "You are a helpful assistant focused only on refinance and home loan topics. "
-            "Respond strictly about home loans, refinancing, mortgage rates, eligibility, payments, and savings options. "
-            "Avoid unrelated topics and politely redirect users to stay focused on these subjects."
+            "You are a helpful assistant focused on refinance and home loan topics. Important guidelines:\n"
+            "1. Give direct, specific answers to questions\n"
+            "2. For admin contact questions, provide this number: wa.me/60126181683\n"
+            "3. Identify yourself as FinZo AI when asked about identity\n"
+            "4. Keep responses concise and focused\n"
+            "5. Don't repeat generic offers of help unless specifically relevant\n"
+            "6. For name questions, say: 'I am FinZo AI, your refinancing assistant.'\n"
+            "7. For employer questions, say: 'I am FinZo AI, created to help with refinancing and home loan queries.'\n"
+            "8. Maintain focus on refinancing, home loans, mortgage rates, eligibility, payments, and savings"
         )
 
-        # Query GPT-3.5 Turbo with the correct API version format
+        # Handle common questions directly without GPT
+        lower_question = question.lower()
+        if "admin" in lower_question or "contact" in lower_question:
+            return "You can contact our admin directly at wa.me/60126181683"
+        elif "your name" in lower_question:
+            return "I am FinZo AI, your refinancing assistant."
+        elif "who" in lower_question and "work" in lower_question:
+            return "I am FinZo AI, created to help with refinancing and home loan queries."
+
+        # For other questions, use GPT-3.5-turbo
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -553,7 +570,6 @@ def handle_gpt_query(question, user_data, phone_number):
             max_tokens=150
         )
         
-        # Extract the message content correctly from the response
         message = response.choices[0].message.content.strip()
         
         # Log query
@@ -568,20 +584,6 @@ def handle_gpt_query(question, user_data, phone_number):
             "Please try again later or contact our admin for assistance: wa.me/60126181683"
         )
 
-# [Rest of the code remains the same]
-
-    except Exception as e:
-        logging.error(f"❌ Error while handling GPT query for {phone_number}: {str(e)}")
-        message = (
-            "We're currently experiencing issues processing your request. "
-            "Please try again later or contact our admin for assistance: wa.me/60126181683"
-        )
-
-    # Send the response back
-    try:
-        send_whatsapp_message(phone_number, message)
-    except Exception as e:
-        logging.error(f"❌ Error sending message to user {phone_number}: {str(e)}")
 
 def log_chat(phone_number, user_message, bot_message):
     """Logs regular chats into ChatLog table with valid user_id."""
