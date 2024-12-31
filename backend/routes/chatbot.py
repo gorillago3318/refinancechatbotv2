@@ -72,6 +72,13 @@ PROMPTS = {
 
 openai.api_key = os.getenv("OPENAI_API_KEY").strip()
 
+# Add greeting patterns
+GREETING_PATTERNS = {
+    'en': ['hi', 'hey', 'hello', 'start', 'begin', 'help'],
+    'ms': ['hai', 'apa khabar', 'selamat', 'mula', 'tolong'],
+    'zh': ['你好', '哈罗', '开始', '帮助']
+}
+
 
 
 # ✅ Add routes (Example Route)
@@ -112,6 +119,15 @@ def validate_monthly_repayment(x, user_data=None):
 def validate_process_completion(x, user_data=None):
     """ Always return True for process completion. """
     return True, ""
+
+def is_greeting(message):
+    """Check if the message is a greeting in any supported language."""
+    message_lower = message.lower().strip()
+    return any(
+        greeting in message_lower 
+        for greetings in GREETING_PATTERNS.values() 
+        for greeting in greetings
+    )
 
 
 STEP_CONFIG = {
@@ -292,24 +308,35 @@ def process_message():
 
         logging.info(f"💎 Incoming message from {phone_number}: {message_body}")
 
-        # 🔥 Step 1: Get ChatflowTemp Data
+        # Get ChatflowTemp Data
         user_data = db.session.query(ChatflowTemp).filter_by(phone_number=phone_number).first()
 
-        # 🔥 Step 2: If no user data exists, create new entry for this phone
-        if not user_data:
-            user_data = ChatflowTemp(
-                phone_number=phone_number,
-                current_step='choose_language',
-                language_code='en',
-                mode='flow'  # ✅ Set default mode to 'flow'
-            )
-            db.session.add(user_data)
+        # Handle greetings or new user
+        if not user_data or is_greeting(message_body):
+            if user_data:
+                # Reset existing user if greeting received
+                user_data.current_step = 'choose_language'
+                user_data.mode = 'flow'
+                user_data.name = None
+                user_data.original_loan_amount = None
+                user_data.original_loan_tenure = None
+                user_data.current_repayment = None
+            else:
+                # Create new user
+                user_data = ChatflowTemp(
+                    phone_number=phone_number,
+                    current_step='choose_language',
+                    language_code='en',
+                    mode='flow'
+                )
+                db.session.add(user_data)
+            
             db.session.commit()
             message = PROMPTS['en']['welcome_message'] + "\n\n" + PROMPTS['en']['choose_language']
             send_whatsapp_message(phone_number, message)
             return jsonify({"status": "success"}), 200
 
-        # 🔥 Step 3: Handle 24-hour reminder with timezone fix
+        # Handle 24-hour reminder with timezone fix
         last_active = user_data.updated_at.replace(tzinfo=MYT)
         if (datetime.now(MYT) - last_active).total_seconds() > 86400:  # 24 hours
             reminder_message = (
@@ -318,7 +345,8 @@ def process_message():
             )
             send_whatsapp_message(phone_number, reminder_message)
 
-        # 🔥 Step 4: Handle "restart" command
+        # Rest of the existing process_message code remains the same...
+        # Handle "restart" command
         if message_body.lower() == 'restart':
             logging.info(f"🔄 Restarting flow for user {phone_number}")
             user_data.current_step = 'choose_language'
@@ -332,14 +360,14 @@ def process_message():
             send_whatsapp_message(phone_number, message)
             return jsonify({"status": "success"}), 200
 
-        # 🔥 Step 5: Check if user is in query mode
+        # Check if user is in query mode
         if user_data.mode == 'query':
             logging.info(f"🟢 User {phone_number} is in query mode.")
             response = handle_gpt_query(message_body, user_data, phone_number)
             send_whatsapp_message(phone_number, response)
             return jsonify({"status": "success"}), 200
 
-        # 🔥 Step 6: Process Current Step
+        # Process Current Step
         current_step = user_data.current_step or 'choose_language'
         step_info = STEP_CONFIG.get(current_step)
         
