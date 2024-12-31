@@ -530,6 +530,8 @@ def send_new_lead_to_admin(phone_number, user_data, calculation_results):
 
     send_whatsapp_message(admin_number, message)
 
+# [Previous imports and code remain the same until handle_gpt_query function]
+
 def handle_gpt_query(question, user_data, phone_number):
     """Handles GPT query requests confined to refinance and home loan topics only."""
     try:
@@ -540,8 +542,7 @@ def handle_gpt_query(question, user_data, phone_number):
             "Avoid unrelated topics and politely redirect users to stay focused on these subjects."
         )
 
-        # Query GPT-3.5 Turbo
-        # New way (for chat models)
+        # Query GPT-3.5 Turbo with the correct API version format
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -551,9 +552,23 @@ def handle_gpt_query(question, user_data, phone_number):
             temperature=0.7,
             max_tokens=150
         )
-        message = response['choices'][0]['text'].strip()
+        
+        # Extract the message content correctly from the response
+        message = response.choices[0].message.content.strip()
+        
         # Log query
         log_gpt_query(phone_number, question, message)
+        
+        return message
+
+    except Exception as e:
+        logging.error(f"❌ Error while handling GPT query for {phone_number}: {str(e)}")
+        return (
+            "We're currently experiencing issues processing your request. "
+            "Please try again later or contact our admin for assistance: wa.me/60126181683"
+        )
+
+# [Rest of the code remains the same]
 
     except Exception as e:
         logging.error(f"❌ Error while handling GPT query for {phone_number}: {str(e)}")
